@@ -8,7 +8,7 @@ Input plugin for mupen64plus using the GameCube controller adapter for Wii U and
 
 **Note:** The plugin will only work for 64-bit mupen64plus. I have only tested it against [m64p](https://m64p.github.io/).
 
-Download the plugin from [Releases](releases/latest) and put it in your mupen64plus folder, then select it from your mupen64plus frontend.
+Download the plugin from [Releases](../../releases/latest) and put it in your mupen64plus folder, then select it from your mupen64plus frontend.
 
 ## Building
 

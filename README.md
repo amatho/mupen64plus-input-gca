@@ -26,4 +26,4 @@ Feel free to open issues or pull requests.
 
 ## License
 
-Licensed under GPL-2.0, see [LICENSE](LICENSE).
+Licensed under the MIT license, see [LICENSE](LICENSE).

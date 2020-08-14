@@ -2,7 +2,7 @@ Mupen64Plus-Core LICENSES
 -------------------------
 
 Mupen64Plus-Core is licensed under the GNU General Public License version 2.  Please see the
-included ../LICENSE file for the terms and conditions of the GNU General Public License. 
+included ./LICENSE file for the terms and conditions of the GNU General Public License. 
 The authors of Mupen64Plus-Core are:
   * Richard Goedeken (Richard42)
   * Sven Eckelmann (ecsv)

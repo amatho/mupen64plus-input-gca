@@ -72,9 +72,6 @@ impl InputState {
     }
 
     /// Get the `ControllerState` for the given channel
-    ///
-    /// # Panics
-    /// Panics if channel is not less than 4
     pub fn controller_state<T: Into<Channel>>(&self, channel: T) -> ControllerState {
         let channel = channel.into() as usize;
 
@@ -114,9 +111,6 @@ impl InputState {
     }
 
     /// Check if a controller is connected to the given channel.
-    ///
-    /// # Panics
-    /// Panics if channel is not less than 4
     pub fn is_connected<T: Into<Channel>>(&self, channel: T) -> bool {
         // 0 = No controller connected
         // 1 = Wired controller

@@ -1,3 +1,5 @@
+#[macro_use]
+mod debug_print;
 mod ffi;
 pub mod gca;
 mod static_cstr;
@@ -7,7 +9,7 @@ use gca::{GCAdapter, InputState};
 use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
 use std::{
-    ffi::{c_void, CString},
+    ffi::c_void,
     mem::ManuallyDrop,
     os::raw::{c_char, c_int, c_uchar},
     ptr,
@@ -73,22 +75,6 @@ static DEBUG_INFO: OnceCell<DebugInfo> = OnceCell::new();
 static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(true);
 static LAST_INPUT_STATE: OnceCell<Arc<Mutex<InputState>>> = OnceCell::new();
 
-#[cfg(debug_assertions)]
-fn debug_message(level: M64Message, message: &str) {
-    if let Some(di) = DEBUG_INFO.get() {
-        let context = di.context_ptr.load(Ordering::Relaxed);
-        if context.is_null() {
-            return;
-        }
-
-        let message = CString::new(message).unwrap();
-        (di.callback)(context, level as c_int, message.as_ptr());
-    }
-}
-
-#[cfg(not(debug_assertions))]
-fn debug_message(_level: M64Message, _message: &str) {}
-
 /// # Safety
 ///
 /// None of the pointers can be null and must be valid
@@ -98,21 +84,27 @@ pub unsafe extern "C" fn PluginStartup(
     context: *mut c_void,
     debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
 ) -> m64p_error {
-    DEBUG_INFO
+    if DEBUG_INFO
         .set(DebugInfo::new(debug_callback, context))
-        .expect("yeet");
+        .is_err()
+    {
+        return m64p_error_M64ERR_ALREADY_INIT;
+    }
 
-    debug_message(M64Message::Info, "PluginStartup called");
+    debug_print!(M64Message::Info, "PluginStartup called");
 
     // Make sure to NOT free the library associated with the handle.
     // That would make other plugins error.
     let lib = ManuallyDrop::new(Library::from_raw(core_lib_handle.cast()));
 
-    let core_api_version_fn = lib
-        .get::<extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int)>(
+    let core_api_version_fn = if let Ok(sym) =
+        lib.get::<extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int)>(
             b"CoreGetAPIVersions\0",
-        )
-        .expect("invalid core library handle");
+        ) {
+        sym
+    } else {
+        return m64p_error_M64ERR_INPUT_INVALID;
+    };
 
     let mut core_ver = 0;
     core_api_version_fn(
@@ -122,15 +114,22 @@ pub unsafe extern "C" fn PluginStartup(
         ptr::null_mut(),
     );
 
-    debug_message(
+    debug_print!(
         M64Message::Info,
-        &format!("Core API reported version {:#08X}", core_ver),
+        "Core API reported version {:#08X}",
+        core_ver
     );
+
+    if core_ver < PLUGIN_INFO.target_api_version
+        || core_ver & 0xfff0000 != PLUGIN_INFO.target_api_version & 0xfff0000
+    {
+        return m64p_error_M64ERR_INCOMPATIBLE;
+    }
 
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
         gc
     } else {
-        debug_message(M64Message::Error, "Could not connect to GameCube adapter!");
+        debug_print!(M64Message::Error, "Could not connect to GameCube adapter!");
         return m64p_error_M64ERR_PLUGIN_FAIL;
     };
 
@@ -139,20 +138,19 @@ pub unsafe extern "C" fn PluginStartup(
         .unwrap();
     let last_state = LAST_INPUT_STATE.get().unwrap().clone();
 
-    let dbg_fn = |l, m| debug_message(l, m);
     thread::spawn(move || {
-        dbg_fn(M64Message::Info, "Adapter thread started");
+        debug_print!(M64Message::Info, "Adapter thread started");
 
         while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
             *last_state
                 .lock()
-                .map_err(|_| dbg_fn(M64Message::Error, "Adapter thread lock error!"))
+                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error!"))
                 .unwrap() = gc_adapter.read();
 
             thread::sleep(Duration::from_millis(1));
         }
 
-        dbg_fn(M64Message::Info, "Adapter thread stopped");
+        debug_print!(M64Message::Info, "Adapter thread stopped");
     });
 
     m64p_error_M64ERR_SUCCESS
@@ -163,7 +161,7 @@ pub unsafe extern "C" fn PluginStartup(
 /// Must be called after PluginStartup
 #[no_mangle]
 pub unsafe extern "C" fn PluginShutdown() -> m64p_error {
-    debug_message(M64Message::Info, "PluginShutdown called");
+    debug_print!(M64Message::Info, "PluginShutdown called");
 
     ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
 
@@ -181,7 +179,7 @@ pub unsafe extern "C" fn PluginGetVersion(
     plugin_name_ptr: *mut *const c_char,
     capabilities: *mut c_int,
 ) -> m64p_error {
-    debug_message(M64Message::Info, "PluginGetVersion called");
+    debug_print!(M64Message::Info, "PluginGetVersion called");
 
     if !plugin_type.is_null() {
         *plugin_type = m64p_plugin_type_M64PLUGIN_INPUT;
@@ -208,9 +206,10 @@ pub extern "C" fn ControllerCommand(control: c_int, _command: *mut c_uchar) {
         return;
     }
 
-    debug_message(
+    debug_print!(
         M64Message::Info,
-        &format!("ControllerCommand called (control = {})", control),
+        "ControllerCommand called (control = {})",
+        control
     );
 }
 
@@ -219,9 +218,10 @@ pub extern "C" fn ControllerCommand(control: c_int, _command: *mut c_uchar) {
 /// `keys` must point to an intialized `BUTTONS` union
 #[no_mangle]
 pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
-    debug_message(
+    debug_print!(
         M64Message::Info,
-        &format!("GetKeys called with control = {}", control),
+        "GetKeys called with control = {}",
+        control
     );
 
     read_keys_from_adapter(control, keys);
@@ -232,30 +232,13 @@ pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
 /// `control_info` must point to an initialized `CONTROL_INFO` struct
 #[no_mangle]
 pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
-    debug_message(M64Message::Info, "InitiateControllers called");
+    debug_print!(M64Message::Info, "InitiateControllers called");
 
-    let input_state = LAST_INPUT_STATE
-        .get()
-        .unwrap()
-        .lock()
-        .map_err(|_| {
-            debug_message(
-                M64Message::Error,
-                "Failed to acquire lock in InitiateControllers",
-            )
-        })
-        .unwrap();
     let controls = control_info.Controls as *mut [CONTROL; 4];
 
     for i in 0..4 {
-        let connected = input_state.is_connected(i);
-        debug_message(
-            M64Message::Info,
-            &format!("Channel {} is connected = {}", i, connected),
-        );
-
         (*controls)[i].RawData = 1;
-        (*controls)[i].Present = connected as c_int;
+        (*controls)[i].Present = 1;
     }
 }
 
@@ -293,24 +276,24 @@ pub unsafe extern "C" fn ReadController(control: c_int, command: *mut u8) {
 
 #[no_mangle]
 pub extern "C" fn RomOpen() -> c_int {
-    debug_message(M64Message::Info, "RomOpen called");
+    debug_print!(M64Message::Info, "RomOpen called");
 
     1
 }
 
 #[no_mangle]
 pub extern "C" fn RomClosed() {
-    debug_message(M64Message::Info, "RomClosed called");
+    debug_print!(M64Message::Info, "RomClosed called");
 }
 
 #[no_mangle]
 pub extern "C" fn SDL_KeyDown(_keymod: c_int, _keysym: c_int) {
-    debug_message(M64Message::Info, "SDL_KeyDown called");
+    debug_print!(M64Message::Info, "SDL_KeyDown called");
 }
 
 #[no_mangle]
 pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
-    debug_message(M64Message::Info, "SDL_KeyUp called");
+    debug_print!(M64Message::Info, "SDL_KeyUp called");
 }
 
 enum ReadCommand {
@@ -342,9 +325,9 @@ unsafe fn read_keys_from_adapter(control: c_int, keys: *mut BUTTONS) {
         .unwrap()
         .lock()
         .map_err(|_| {
-            debug_message(
+            debug_print!(
                 M64Message::Error,
-                "Failed to acquire lock in read_keys_from_adapter",
+                "Failed to acquire lock in read_keys_from_adapter"
             )
         })
         .unwrap();
@@ -356,10 +339,6 @@ unsafe fn read_keys_from_adapter(control: c_int, keys: *mut BUTTONS) {
     let keys = &mut *keys;
 
     let s = input_state.controller_state(control as usize);
-
-    if s.any() {
-        debug_message(M64Message::Info, "There was an input from the controller");
-    }
 
     let c_left = s.y || s.substick_x < 88;
     let c_right = s.x || s.substick_x > 168;

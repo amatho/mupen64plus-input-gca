@@ -1,6 +1,5 @@
 use std::os::raw::c_char;
 
-#[macro_export]
 macro_rules! static_cstr {
     ($s:expr) => {
         StaticCStr(concat!($s, "\0").as_bytes())

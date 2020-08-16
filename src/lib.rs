@@ -1,7 +1,8 @@
 #[macro_use]
-mod debug_print;
+mod debug;
 mod ffi;
 pub mod gca;
+#[macro_use]
 mod static_cstr;
 
 use ffi::*;
@@ -14,7 +15,7 @@ use std::{
     os::raw::{c_char, c_int, c_uchar},
     ptr,
     sync::{
-        atomic::{AtomicBool, AtomicPtr, Ordering},
+        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
     thread,
@@ -42,24 +43,6 @@ impl PluginInfo {
     }
 }
 
-#[derive(Debug)]
-struct DebugInfo {
-    callback: extern "C" fn(*mut c_void, c_int, *const c_char),
-    context_ptr: AtomicPtr<c_void>,
-}
-
-impl DebugInfo {
-    fn new(
-        debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
-        context: *mut c_void,
-    ) -> Self {
-        Self {
-            callback: debug_callback,
-            context_ptr: AtomicPtr::new(context),
-        }
-    }
-}
-
 #[allow(dead_code)]
 enum M64Message {
     Error = 1,
@@ -70,7 +53,6 @@ enum M64Message {
 }
 
 static PLUGIN_INFO: PluginInfo = PluginInfo::new();
-static DEBUG_INFO: OnceCell<DebugInfo> = OnceCell::new();
 
 static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(true);
 static LAST_INPUT_STATE: OnceCell<Arc<Mutex<InputState>>> = OnceCell::new();
@@ -84,10 +66,7 @@ pub unsafe extern "C" fn PluginStartup(
     context: *mut c_void,
     debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
 ) -> m64p_error {
-    if DEBUG_INFO
-        .set(DebugInfo::new(debug_callback, context))
-        .is_err()
-    {
+    if debug::init(debug_callback, context).is_err() {
         return m64p_error_M64ERR_ALREADY_INIT;
     }
 

@@ -57,9 +57,12 @@ static PLUGIN_INFO: PluginInfo = PluginInfo::new();
 static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(true);
 static LAST_INPUT_STATE: OnceCell<Arc<Mutex<InputState>>> = OnceCell::new();
 
+/// Start up the plugin.
+///
 /// # Safety
 ///
-/// None of the pointers can be null and must be valid
+/// `core_lib_handle` cannot be null and must be a pointer to the mupen64plus-core dynamic library.
+/// `debug_callback` cannot be null and must be a valid C function pointer with the correct type signature.
 #[no_mangle]
 pub unsafe extern "C" fn PluginStartup(
     core_lib_handle: m64p_dynlib_handle,
@@ -135,11 +138,11 @@ pub unsafe extern "C" fn PluginStartup(
     m64p_error_M64ERR_SUCCESS
 }
 
-/// # Safety
+/// Shut down the plugin.
 ///
-/// Must be called after PluginStartup
+/// This function is not unsafe, but if this is not called then the adapter thread will continue running.
 #[no_mangle]
-pub unsafe extern "C" fn PluginShutdown() -> m64p_error {
+pub extern "C" fn PluginShutdown() -> m64p_error {
     debug_print!(M64Message::Info, "PluginShutdown called");
 
     ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
@@ -147,9 +150,11 @@ pub unsafe extern "C" fn PluginShutdown() -> m64p_error {
     m64p_error_M64ERR_SUCCESS
 }
 
+/// Get the plugin version and etc.
+///
 /// # Safety
 ///
-/// None of the pointers can be null and must be valid
+/// The caller has to make sure the given pointers are pointing to correct types.
 #[no_mangle]
 pub unsafe extern "C" fn PluginGetVersion(
     plugin_type: *mut m64p_plugin_type,
@@ -179,6 +184,7 @@ pub unsafe extern "C" fn PluginGetVersion(
     m64p_error_M64ERR_SUCCESS
 }
 
+/// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
 pub extern "C" fn ControllerCommand(control: c_int, _command: *mut c_uchar) {
     if control == -1 {
@@ -192,9 +198,13 @@ pub extern "C" fn ControllerCommand(control: c_int, _command: *mut c_uchar) {
     );
 }
 
+/// Get which keys are pressed.
+///
+/// This is currently unused, as it seems like only raw data works (using `ReadController` and `ControllerCommand`).
+///
 /// # Safety
 ///
-/// `keys` must point to an intialized `BUTTONS` union
+/// `keys` must point to an intialized `BUTTONS` union.
 #[no_mangle]
 pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
     debug_print!(
@@ -203,12 +213,15 @@ pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
         control
     );
 
-    read_keys_from_adapter(control, keys);
+    read_from_adapter(control, keys);
 }
 
+/// Fills the given `CONTROL_INFO` struct.
+///
 /// # Safety
 ///
-/// `control_info` must point to an initialized `CONTROL_INFO` struct
+/// `control_info` must point to an initialized `CONTROL_INFO` struct, and the `Controls` field must point to an array
+/// of length 4 with initialized `CONTROL` structs.
 #[no_mangle]
 pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
     debug_print!(M64Message::Info, "InitiateControllers called");
@@ -221,9 +234,11 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
     }
 }
 
+/// Process the command and possibly read the controller.
+///
 /// # Safety
 ///
-/// `command` must be a u8 array with length at least 6
+/// `command` must be a valid u8 array with length dependent of the given command.
 #[no_mangle]
 pub unsafe extern "C" fn ReadController(control: c_int, command: *mut u8) {
     if control == -1 {
@@ -240,7 +255,7 @@ pub unsafe extern "C" fn ReadController(control: c_int, command: *mut u8) {
         ReadCommand::ReadKeys => {
             let mut buttons = BUTTONS { Value: 0 };
 
-            read_keys_from_adapter(control, &mut buttons as *mut _);
+            read_from_adapter(control, &mut buttons as *mut _);
 
             *(command.add(3) as *mut u32) = buttons.Value;
         }
@@ -253,6 +268,7 @@ pub unsafe extern "C" fn ReadController(control: c_int, command: *mut u8) {
     }
 }
 
+/// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
 pub extern "C" fn RomOpen() -> c_int {
     debug_print!(M64Message::Info, "RomOpen called");
@@ -260,16 +276,19 @@ pub extern "C" fn RomOpen() -> c_int {
     1
 }
 
+/// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
 pub extern "C" fn RomClosed() {
     debug_print!(M64Message::Info, "RomClosed called");
 }
 
+/// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
 pub extern "C" fn SDL_KeyDown(_keymod: c_int, _keysym: c_int) {
     debug_print!(M64Message::Info, "SDL_KeyDown called");
 }
 
+/// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
 pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
     debug_print!(M64Message::Info, "SDL_KeyUp called");
@@ -298,7 +317,7 @@ impl From<u8> for ReadCommand {
     }
 }
 
-unsafe fn read_keys_from_adapter(control: c_int, keys: *mut BUTTONS) {
+unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
     let input_state = LAST_INPUT_STATE
         .get()
         .unwrap()

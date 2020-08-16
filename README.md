@@ -16,7 +16,7 @@ Then download the plugin from [Releases](../../releases/latest) and put it in yo
 
 Make sure that your adapter is plugged in and set up correctly before launching mupen64plus, otherwise the plugin will fail to load.
 
-The current controller mapping is what you would expect, expect for
+The current controller mapping is what you would expect, except for
 
 * Y is C-button left
 * X is C-button right

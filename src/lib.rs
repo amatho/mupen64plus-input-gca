@@ -373,7 +373,8 @@ unsafe fn read_keys_from_adapter(control: c_int, keys: *mut BUTTONS) {
     if s.start {
         keys.Value |= 0x0010;
     }
-    if s.z || s.l || s.trigger_left > 148 {
+    // Use the L trigger for N64 Z
+    if s.l || s.trigger_left > 148 {
         keys.Value |= 0x0020;
     }
     if s.b {
@@ -397,9 +398,10 @@ unsafe fn read_keys_from_adapter(control: c_int, keys: *mut BUTTONS) {
     if s.r || s.trigger_right > 148 {
         keys.Value |= 0x1000;
     }
-    // if s.l {
-    //     keys.Value |= 0x2000;
-    // }
+    // Use the Z button for N64 L
+    if s.z {
+        keys.Value |= 0x2000;
+    }
 
     keys.__bindgen_anon_1.set_X_AXIS(stick_x as i32);
     keys.__bindgen_anon_1.set_Y_AXIS(stick_y as i32);

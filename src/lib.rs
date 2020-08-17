@@ -1,25 +1,18 @@
 #[macro_use]
 mod debug;
+pub mod adapter;
 mod ffi;
-pub mod gca;
 #[macro_use]
 mod static_cstr;
 
+use debug::M64Message;
 use ffi::*;
-use gca::{GCAdapter, InputState};
-use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
 use std::{
     ffi::c_void,
     mem::ManuallyDrop,
     os::raw::{c_char, c_int, c_uchar},
     ptr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    thread,
-    time::Duration,
 };
 
 #[cfg(unix)]
@@ -33,29 +26,11 @@ struct PluginInfo {
     target_api_version: c_int,
 }
 
-impl PluginInfo {
-    const fn new() -> Self {
-        Self {
-            name: static_cstr!("GC Adapter (for Wii U or Switch) Input Plugin"),
-            version: 0x000100,            // v0.1.0
-            target_api_version: 0x020100, // v2.1.0
-        }
-    }
-}
-
-#[allow(dead_code)]
-enum M64Message {
-    Error = 1,
-    Warning,
-    Info,
-    Status,
-    Verbose,
-}
-
-static PLUGIN_INFO: PluginInfo = PluginInfo::new();
-
-static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(true);
-static LAST_INPUT_STATE: OnceCell<Arc<Mutex<InputState>>> = OnceCell::new();
+static PLUGIN_INFO: PluginInfo = PluginInfo {
+    name: static_cstr!("GC Adapter (for Wii U or Switch) Input Plugin"),
+    version: 0x000100,            // v0.1.0
+    target_api_version: 0x020100, // v2.1.0
+};
 
 /// Start up the plugin.
 ///
@@ -108,32 +83,9 @@ pub unsafe extern "C" fn PluginStartup(
         return m64p_error_M64ERR_INCOMPATIBLE;
     }
 
-    let gc_adapter = if let Ok(gc) = GCAdapter::new() {
-        gc
-    } else {
-        debug_print!(M64Message::Error, "Could not connect to GameCube adapter!");
+    if adapter::start_read_thread().is_err() {
         return m64p_error_M64ERR_PLUGIN_FAIL;
-    };
-
-    LAST_INPUT_STATE
-        .set(Arc::new(Mutex::new(gc_adapter.read())))
-        .unwrap();
-    let last_state = LAST_INPUT_STATE.get().unwrap().clone();
-
-    thread::spawn(move || {
-        debug_print!(M64Message::Info, "Adapter thread started");
-
-        while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
-            *last_state
-                .lock()
-                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error!"))
-                .unwrap() = gc_adapter.read();
-
-            thread::sleep(Duration::from_millis(1));
-        }
-
-        debug_print!(M64Message::Info, "Adapter thread stopped");
-    });
+    }
 
     m64p_error_M64ERR_SUCCESS
 }
@@ -145,7 +97,7 @@ pub unsafe extern "C" fn PluginStartup(
 pub extern "C" fn PluginShutdown() -> m64p_error {
     debug_print!(M64Message::Info, "PluginShutdown called");
 
-    ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
+    adapter::stop_read_thread();
 
     m64p_error_M64ERR_SUCCESS
 }
@@ -318,17 +270,7 @@ impl From<u8> for ReadCommand {
 }
 
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    let input_state = LAST_INPUT_STATE
-        .get()
-        .unwrap()
-        .lock()
-        .map_err(|_| {
-            debug_print!(
-                M64Message::Error,
-                "Failed to acquire lock in read_keys_from_adapter"
-            )
-        })
-        .unwrap();
+    let input_state = adapter::last_input_state();
 
     if !input_state.is_connected(control) {
         return;

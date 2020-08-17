@@ -1,4 +1,3 @@
-use crate::M64Message;
 use once_cell::sync::OnceCell;
 use std::{
     ffi::{c_void, CString},
@@ -37,6 +36,15 @@ pub(crate) fn __print_debug_message(level: M64Message, message: String) {
             (di.callback)(context, level as c_int, message.as_ptr());
         }
     }
+}
+
+#[allow(dead_code)]
+pub enum M64Message {
+    Error = 1,
+    Warning,
+    Info,
+    Status,
+    Verbose,
 }
 
 #[derive(Debug)]

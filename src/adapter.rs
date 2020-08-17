@@ -1,9 +1,71 @@
+use crate::M64Message;
+use once_cell::sync::OnceCell;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{fmt::Debug, time::Duration};
+use std::{
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
+    thread,
+    time::Duration,
+};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
+
+static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(false);
+static LAST_INPUT_STATE: OnceCell<Mutex<InputState>> = OnceCell::new();
+
+pub fn start_read_thread() -> Result<(), &'static str> {
+    let gc_adapter = if let Ok(gc) = GCAdapter::new() {
+        gc
+    } else {
+        debug_print!(M64Message::Error, "Could not connect to GameCube adapter!");
+        return Err("could not initialize GameCube adapter");
+    };
+
+    LAST_INPUT_STATE.set(Mutex::new(gc_adapter.read())).unwrap();
+
+    ADAPTER_READ_THREAD.store(true, Ordering::Relaxed);
+
+    let last_state = LAST_INPUT_STATE.get().unwrap();
+    thread::spawn(move || {
+        debug_print!(M64Message::Info, "Adapter thread started");
+
+        while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
+            *last_state
+                .lock()
+                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error!"))
+                .unwrap() = gc_adapter.read();
+
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        debug_print!(M64Message::Info, "Adapter thread stopped");
+    });
+
+    Ok(())
+}
+
+pub fn stop_read_thread() {
+    ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
+}
+
+pub fn last_input_state() -> InputState {
+    *LAST_INPUT_STATE
+        .get()
+        .unwrap()
+        .lock()
+        .map_err(|_| {
+            debug_print!(
+                M64Message::Error,
+                "Failed to acquire lock in read_keys_from_adapter"
+            )
+        })
+        .unwrap()
+}
 
 pub struct GCAdapter {
     handle: DeviceHandle<GlobalContext>,
@@ -57,7 +119,7 @@ impl GCAdapter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct InputState {
     buf: [u8; READ_LEN],
 }
@@ -121,7 +183,7 @@ impl InputState {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct ControllerState {
     pub a: bool,
     pub b: bool,

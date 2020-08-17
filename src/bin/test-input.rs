@@ -1,4 +1,4 @@
-use mupen64plus_input_gca::gca::GCAdapter;
+use mupen64plus_input_gca::adapter::GCAdapter;
 use std::time::{Duration, Instant};
 
 fn main() {

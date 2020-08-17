@@ -270,10 +270,7 @@ impl From<u8> for ReadCommand {
 }
 
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    let input_state = adapter::last_input_state().unwrap_or_else(|(level, msg)| {
-        debug_print!(level, "{}", msg);
-        adapter::InputState::empty()
-    });
+    let input_state = adapter::last_input_state();
 
     if !input_state.is_connected(control) {
         return;

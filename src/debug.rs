@@ -31,10 +31,9 @@ macro_rules! debug_print {
 pub(crate) fn __print_debug_message(level: M64Message, message: String) {
     if let Some(di) = DEBUG_INFO.get() {
         let context = di.context_ptr.load(::std::sync::atomic::Ordering::Relaxed);
-        if !context.is_null() {
-            let message = CString::new(message).unwrap();
-            (di.callback)(context, level as c_int, message.as_ptr());
-        }
+        let message = CString::new(message).unwrap();
+
+        (di.callback)(context, level as c_int, message.as_ptr());
     }
 }
 

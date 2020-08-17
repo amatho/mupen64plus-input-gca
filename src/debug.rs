@@ -21,7 +21,7 @@ macro_rules! debug_print {
         debug_print!($level, $s,)
     };
     ($level:expr, $s:expr, $($arg:expr),*) => {{
-        if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) || $level <= $crate::debug::M64Message::Warning {
             $crate::debug::__print_debug_message($level, format!($s $(, $arg)*));
         }
     }};
@@ -38,6 +38,7 @@ pub(crate) fn __print_debug_message(level: M64Message, message: String) {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, PartialOrd, PartialEq)]
 pub enum M64Message {
     Error = 1,
     Warning,

@@ -58,7 +58,7 @@ pub fn last_input_state() -> InputState {
         Some(m) => m,
         None => {
             debug_print!(
-            M64Message::Error,
+                M64Message::Error,
                 "Could not read input state, plugin was not initialized"
             );
             panic!("plugin was not initialized");
@@ -187,6 +187,12 @@ impl InputState {
         let controller_type = self.buf[1 + (9 * channel.into() as usize)] >> 4;
 
         controller_type != 0
+    }
+
+    pub fn any_connected(&self) -> bool {
+        (0..4)
+            .map(|i| self.is_connected(i))
+            .any(std::convert::identity)
     }
 }
 

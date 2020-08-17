@@ -184,6 +184,13 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
         (*controls)[i].RawData = 1;
         (*controls)[i].Present = 1;
     }
+
+    if !adapter::last_input_state().any_connected() {
+        debug_print!(
+            M64Message::Warning,
+            "No controllers connected, but hotplugging is supported"
+        );
+    }
 }
 
 /// Process the command and possibly read the controller.

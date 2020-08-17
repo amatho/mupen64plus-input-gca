@@ -53,18 +53,19 @@ pub fn stop_read_thread() {
     ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
 }
 
-pub fn last_input_state() -> InputState {
-    *LAST_INPUT_STATE
+pub fn last_input_state() -> Result<InputState, (M64Message, &'static str)> {
+    LAST_INPUT_STATE
         .get()
-        .unwrap()
-        .lock()
-        .map_err(|_| {
-            debug_print!(
-                M64Message::Error,
-                "Failed to acquire lock in read_keys_from_adapter"
-            )
+        .ok_or((
+            M64Message::Error,
+            "Could not read input state, plugin was not initialized",
+        ))
+        .and_then(|mutex| {
+            mutex
+                .lock()
+                .map(|state| *state)
+                .map_err(|_| (M64Message::Error, "Could not acquire input state lock"))
         })
-        .unwrap()
 }
 
 pub struct GCAdapter {

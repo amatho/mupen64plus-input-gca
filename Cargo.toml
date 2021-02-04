@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
-bindgen = "0.54.1"
+bindgen = "0.57.0"
 
 [dependencies]
 libloading = "0.6.2"

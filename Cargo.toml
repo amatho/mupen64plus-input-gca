@@ -3,6 +3,7 @@ name = "mupen64plus-input-gca"
 version = "0.1.0"
 authors = ["Amandus Søve Thorsrud <ama.thorsrud@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -11,6 +12,6 @@ crate-type = ["cdylib", "rlib"]
 bindgen = "0.57.0"
 
 [dependencies]
-libloading = "0.6.2"
-rusb = "0.6.2"
-once_cell = "1.4.0"
+libloading = "0.7.0"
+rusb = "0.8.0"
+once_cell = "1.7.2"

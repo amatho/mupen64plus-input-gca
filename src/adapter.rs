@@ -144,38 +144,34 @@ impl InputState {
     pub fn controller_state<T: Into<Channel>>(&self, channel: T) -> ControllerState {
         let channel = channel.into() as usize;
 
-        let b1 = self.buf[1 + (9 * channel) + 1];
-        let b2 = self.buf[1 + (9 * channel) + 2];
+        if let [b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
+            self.buf[(9 * channel) + 2..]
+        {
+            ControllerState {
+                a: b1 & (1 << 0) > 0,
+                b: b1 & (1 << 1) > 0,
+                x: b1 & (1 << 2) > 0,
+                y: b1 & (1 << 3) > 0,
 
-        let stick_x = self.buf[1 + (9 * channel) + 3];
-        let stick_y = self.buf[1 + (9 * channel) + 4];
-        let substick_x = self.buf[1 + (9 * channel) + 5];
-        let substick_y = self.buf[1 + (9 * channel) + 6];
-        let trigger_left = self.buf[1 + (9 * channel) + 7];
-        let trigger_right = self.buf[1 + (9 * channel) + 8];
+                left: b1 & (1 << 4) > 0,
+                right: b1 & (1 << 5) > 0,
+                down: b1 & (1 << 6) > 0,
+                up: b1 & (1 << 7) > 0,
 
-        ControllerState {
-            a: b1 & (1 << 0) > 0,
-            b: b1 & (1 << 1) > 0,
-            x: b1 & (1 << 2) > 0,
-            y: b1 & (1 << 3) > 0,
+                start: b2 & (1 << 0) > 0,
+                z: b2 & (1 << 1) > 0,
+                r: b2 & (1 << 2) > 0,
+                l: b2 & (1 << 3) > 0,
 
-            left: b1 & (1 << 4) > 0,
-            right: b1 & (1 << 5) > 0,
-            down: b1 & (1 << 6) > 0,
-            up: b1 & (1 << 7) > 0,
-
-            start: b2 & (1 << 0) > 0,
-            z: b2 & (1 << 1) > 0,
-            r: b2 & (1 << 2) > 0,
-            l: b2 & (1 << 3) > 0,
-
-            stick_x,
-            stick_y,
-            substick_x,
-            substick_y,
-            trigger_left,
-            trigger_right,
+                stick_x,
+                stick_y,
+                substick_x,
+                substick_y,
+                trigger_left,
+                trigger_right,
+            }
+        } else {
+            ControllerState::default()
         }
     }
 

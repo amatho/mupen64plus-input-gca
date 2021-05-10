@@ -12,12 +12,12 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header("extern/wrapper.h")
-        .whitelist_type("m64p_error")
-        .whitelist_type("m64p_dynlib_handle")
-        .whitelist_type("m64p_plugin_type")
-        .whitelist_type("BUTTONS")
-        .whitelist_type("CONTROL_INFO")
-        .whitelist_recursively(true)
+        .allowlist_type("m64p_error")
+        .allowlist_type("m64p_dynlib_handle")
+        .allowlist_type("m64p_plugin_type")
+        .allowlist_type("BUTTONS")
+        .allowlist_type("CONTROL_INFO")
+        .allowlist_recursively(true)
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))

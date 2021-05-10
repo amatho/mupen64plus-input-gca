@@ -22,11 +22,17 @@ pub fn start_read_thread() -> Result<(), &'static str> {
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
         gc
     } else {
-        debug_print!(M64Message::Error, "Could not connect to GameCube adapter!");
+        debug_print!(M64Message::Error, "Could not connect to GameCube adapter");
         return Err("could not initialize GameCube adapter");
     };
 
-    LAST_INPUT_STATE.set(Mutex::new(gc_adapter.read())).unwrap();
+    // If the plugin has been started and shut down earlier, last input state will already be initialized
+    if LAST_INPUT_STATE.set(Mutex::new(gc_adapter.read())).is_err() {
+        debug_print!(
+            M64Message::Warning,
+            "Plugin has been started after a previous shutdown"
+        )
+    }
 
     ADAPTER_READ_THREAD.store(true, Ordering::Relaxed);
 
@@ -37,7 +43,7 @@ pub fn start_read_thread() -> Result<(), &'static str> {
         while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
             *last_state
                 .lock()
-                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error!"))
+                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error"))
                 .unwrap() = gc_adapter.read();
 
             thread::sleep(Duration::from_millis(1));

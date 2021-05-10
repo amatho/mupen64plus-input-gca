@@ -13,6 +13,7 @@ use std::{
     mem::ManuallyDrop,
     os::raw::{c_char, c_int, c_uchar},
     ptr,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 #[cfg(unix)]
@@ -32,6 +33,8 @@ static PLUGIN_INFO: PluginInfo = PluginInfo {
     target_api_version: 0x020100, // v2.1.0
 };
 
+static IS_INIT: AtomicBool = AtomicBool::new(false);
+
 /// Start up the plugin.
 ///
 /// # Safety
@@ -44,8 +47,15 @@ pub unsafe extern "C" fn PluginStartup(
     context: *mut c_void,
     debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
 ) -> m64p_error {
-    if debug::init(debug_callback, context).is_err() {
+    if IS_INIT.load(Ordering::SeqCst) {
+        debug_print!(M64Message::Error, "Plugin was already initialized");
         return m64p_error_M64ERR_ALREADY_INIT;
+    }
+
+    IS_INIT.store(true, Ordering::SeqCst);
+
+    if debug::init(debug_callback, context).is_err() {
+        debug_print!(M64Message::Warning, "Debug was already initialized")
     }
 
     debug_print!(M64Message::Info, "PluginStartup called");
@@ -60,6 +70,10 @@ pub unsafe extern "C" fn PluginStartup(
         ) {
         sym
     } else {
+        debug_print!(
+            M64Message::Error,
+            "Could not find function for getting core API versions"
+        );
         return m64p_error_M64ERR_INPUT_INVALID;
     };
 
@@ -80,10 +94,15 @@ pub unsafe extern "C" fn PluginStartup(
     if core_ver < PLUGIN_INFO.target_api_version
         || core_ver & 0xfff0000 != PLUGIN_INFO.target_api_version & 0xfff0000
     {
+        debug_print!(
+            M64Message::Error,
+            "Plugin is incompatible with core API version"
+        );
         return m64p_error_M64ERR_INCOMPATIBLE;
     }
 
     if adapter::start_read_thread().is_err() {
+        debug_print!(M64Message::Error, "Could not start adapter read thread");
         return m64p_error_M64ERR_PLUGIN_FAIL;
     }
 
@@ -97,6 +116,7 @@ pub unsafe extern "C" fn PluginStartup(
 pub extern "C" fn PluginShutdown() -> m64p_error {
     debug_print!(M64Message::Info, "PluginShutdown called");
 
+    IS_INIT.store(false, Ordering::SeqCst);
     adapter::stop_read_thread();
 
     m64p_error_M64ERR_SUCCESS

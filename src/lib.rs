@@ -29,7 +29,7 @@ struct PluginInfo {
 
 static PLUGIN_INFO: PluginInfo = PluginInfo {
     name: static_cstr!("GC Adapter (for Wii U or Switch) Input Plugin"),
-    version: 0x000100,            // v0.1.0
+    version: 0x000201,            // v0.2.1
     target_api_version: 0x020100, // v2.1.0
 };
 

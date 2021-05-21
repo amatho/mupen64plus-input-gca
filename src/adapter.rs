@@ -1,12 +1,9 @@
 use crate::M64Message;
-use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use rusb::{DeviceHandle, GlobalContext};
 use std::{
     fmt::Debug,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+    sync::atomic::{AtomicBool, Ordering},
     thread,
     time::Duration,
 };
@@ -16,7 +13,7 @@ const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
 
 static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(false);
-static LAST_INPUT_STATE: OnceCell<Mutex<InputState>> = OnceCell::new();
+static LAST_INPUT_STATE: Mutex<InputState> = Mutex::new(InputState::empty());
 
 pub fn start_read_thread() -> Result<(), &'static str> {
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
@@ -26,26 +23,15 @@ pub fn start_read_thread() -> Result<(), &'static str> {
         return Err("could not initialize GameCube adapter");
     };
 
-    // If the plugin has been started and shut down earlier, last input state will already be initialized
-    if LAST_INPUT_STATE.set(Mutex::new(gc_adapter.read())).is_err() {
-        debug_print!(
-            M64Message::Warning,
-            "Plugin has been started after a previous shutdown"
-        )
-    }
-
     ADAPTER_READ_THREAD.store(true, Ordering::Relaxed);
 
-    let last_state = LAST_INPUT_STATE.get().unwrap();
     thread::spawn(move || {
         debug_print!(M64Message::Info, "Adapter thread started");
 
         while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
-            *last_state
-                .lock()
-                .map_err(|_| debug_print!(M64Message::Error, "Adapter thread lock error"))
-                .unwrap() = gc_adapter.read();
+            *LAST_INPUT_STATE.lock() = gc_adapter.read();
 
+            // Gives a polling rate of approx. 1000 Hz
             thread::sleep(Duration::from_millis(1));
         }
 
@@ -60,24 +46,7 @@ pub fn stop_read_thread() {
 }
 
 pub fn last_input_state() -> InputState {
-    let mutex = match LAST_INPUT_STATE.get() {
-        Some(m) => m,
-        None => {
-            debug_print!(
-                M64Message::Error,
-                "Could not read input state, plugin was not initialized"
-            );
-            panic!("plugin was not initialized");
-        }
-    };
-
-    match mutex.lock() {
-        Ok(s) => *s,
-        Err(_) => {
-            debug_print!(M64Message::Error, "Could not acquire input state lock");
-            panic!("could not acquire input state lock");
-        }
-    }
+    *LAST_INPUT_STATE.lock()
 }
 
 pub struct GCAdapter {
@@ -138,11 +107,11 @@ pub struct InputState {
 }
 
 impl InputState {
-    fn new(buf: [u8; READ_LEN]) -> Self {
+    const fn new(buf: [u8; READ_LEN]) -> Self {
         InputState { buf }
     }
 
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         InputState { buf: [0; READ_LEN] }
     }
 

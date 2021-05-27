@@ -9,7 +9,7 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
-bindgen = "0.58.1"
+bindgen = { version = "0.58.1", default-features = false, features = ["runtime"] }
 
 [dependencies]
 libloading = "0.7.0"

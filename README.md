@@ -1,14 +1,16 @@
 # mupen64plus-input-gca
 
-Input plugin for Mupen64Plus using the GameCube controller adapter for Wii U and Switch.
+An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U and Switch.
 
 ## Installing
 
-**Note:** The plugin will only work for 64-bit Mupen64Plus. I have only tested it against [m64p](https://github.com/loganmc10/m64p).
+**NOTE:** The plugin will only work for 64-bit Mupen64Plus. I have only tested it against [m64p](https://github.com/loganmc10/m64p).
 
-First, follow the first section of [this Dolphin guide](https://dolphin-emu.org/docs/guides/how-use-official-gc-controller-adapter-wii-u/) for setting up your adapter (use Zadig if you are on Windows).
+1. Follow the first section of [this Dolphin guide](https://nb.dolphin-emu.org/docs/guides/how-use-official-gc-controller-adapter-wii-u/?cr=nb#Installation) to set up your adapter (use Zadig if you are on Windows).
 
-Then download the plugin from [Releases](../../releases/latest) (Windows: .dll, macOS: .dylib, Linux: .so) and put it in your Mupen64Plus folder, then select it from your Mupen64Plus frontend.
+1. Download the plugin from [the latest release](../../releases/latest) (Windows: .dll, macOS: .dylib, Linux: .so).
+
+1. Place the plugin in your Mupen64Plus folder, and select it from your Mupen64Plus frontend.
 
 ## Usage
 
@@ -29,9 +31,17 @@ Build requirements:
 
 For installing LLVM see [the `bindgen` User Guide](https://rust-lang.github.io/rust-bindgen/requirements.html).
 
-Then run `cargo build` from the project root. Run `cargo build --release` to compile in release mode.
+To build the project:
 
-**Note:** The compiled dynamic library will have underscores in it's name, but m64p (linked above) will only look for plugins with hyphens. Just rename the file and m64p will find it.
+```
+$ git clone https://github.com/amatho/mupen64plus-input-gca
+$ cd mupen64plus-input-gca
+$ cargo build --release
+```
+
+The compiled plugin will be at `target/release/mupen64plus_input_gca.(dll|dylib|so)`.
+
+**NOTE:** The compiled dynamic library will have underscores in it's name, but m64p (linked above) will only look for plugins with hyphens. Just rename the file and m64p will find it.
 
 ## Contributing
 

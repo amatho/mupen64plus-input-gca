@@ -1,18 +1,12 @@
-use crate::M64Message;
+use crate::{M64Message, IS_INIT};
 use parking_lot::Mutex;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{
-    fmt::Debug,
-    sync::atomic::{AtomicBool, Ordering},
-    thread,
-    time::Duration,
-};
+use std::{fmt::Debug, sync::atomic::Ordering, thread, time::Duration};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
 
-static ADAPTER_READ_THREAD: AtomicBool = AtomicBool::new(false);
 static LAST_INPUT_STATE: Mutex<InputState> = Mutex::new(InputState::empty());
 
 pub fn start_read_thread() -> Result<(), &'static str> {
@@ -23,12 +17,10 @@ pub fn start_read_thread() -> Result<(), &'static str> {
         return Err("could not initialize GameCube adapter");
     };
 
-    ADAPTER_READ_THREAD.store(true, Ordering::Relaxed);
-
     thread::spawn(move || {
         debug_print!(M64Message::Info, "Adapter thread started");
 
-        while ADAPTER_READ_THREAD.load(Ordering::Relaxed) {
+        while IS_INIT.load(Ordering::Relaxed) {
             *LAST_INPUT_STATE.lock() = gc_adapter.read();
 
             // Gives a polling rate of approx. 1000 Hz
@@ -39,10 +31,6 @@ pub fn start_read_thread() -> Result<(), &'static str> {
     });
 
     Ok(())
-}
-
-pub fn stop_read_thread() {
-    ADAPTER_READ_THREAD.store(false, Ordering::Relaxed);
 }
 
 pub fn last_input_state() -> InputState {

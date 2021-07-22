@@ -54,10 +54,7 @@ pub unsafe extern "C" fn PluginStartup(
 
     IS_INIT.store(true, Ordering::SeqCst);
 
-    if debug::init(debug_callback, context).is_err() {
-        debug_print!(M64Message::Warning, "Debug was already initialized")
-    }
-
+    debug::init(debug_callback, context);
     debug_print!(M64Message::Info, "PluginStartup called");
 
     // Make sure to NOT free the library associated with the handle.
@@ -117,7 +114,6 @@ pub extern "C" fn PluginShutdown() -> m64p_error {
     debug_print!(M64Message::Info, "PluginShutdown called");
 
     IS_INIT.store(false, Ordering::SeqCst);
-    adapter::stop_read_thread();
 
     m64p_error_M64ERR_SUCCESS
 }

@@ -1,4 +1,4 @@
-use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use std::{
     ffi::{c_void, CString},
     os::raw::{c_char, c_int},
@@ -8,13 +8,11 @@ use std::{
 pub fn init(
     debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
     context_ptr: *mut c_void,
-) -> Result<(), &'static str> {
-    DEBUG_INFO
-        .set(DebugInfo::new(debug_callback, context_ptr))
-        .map_err(|_| "debug info was already initialized")
+) {
+    *DEBUG_INFO.lock() = Some(DebugInfo::new(debug_callback, context_ptr));
 }
 
-pub static DEBUG_INFO: OnceCell<DebugInfo> = OnceCell::new();
+pub static DEBUG_INFO: Mutex<Option<DebugInfo>> = Mutex::new(None);
 
 macro_rules! debug_print {
     ($level:expr, $s:expr) => {
@@ -29,7 +27,7 @@ macro_rules! debug_print {
 
 #[doc(hidden)]
 pub(crate) fn __print_debug_message(level: M64Message, message: String) {
-    if let Some(di) = DEBUG_INFO.get() {
+    if let Some(ref di) = *DEBUG_INFO.lock() {
         let context = di.context_ptr.load(::std::sync::atomic::Ordering::Relaxed);
         let message = CString::new(message).unwrap();
 

@@ -45,7 +45,7 @@ static IS_INIT: AtomicBool = AtomicBool::new(false);
 pub unsafe extern "C" fn PluginStartup(
     core_lib_handle: m64p_dynlib_handle,
     context: *mut c_void,
-    debug_callback: extern "C" fn(*mut c_void, c_int, *const c_char),
+    debug_callback: debug::DebugCallback,
 ) -> m64p_error {
     if IS_INIT.load(Ordering::SeqCst) {
         debug_print!(M64Message::Error, "Plugin was already initialized");

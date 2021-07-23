@@ -1,5 +1,5 @@
 use crate::{M64Message, IS_INIT};
-use parking_lot::Mutex;
+use crossbeam_utils::atomic::AtomicCell;
 use rusb::{DeviceHandle, GlobalContext};
 use std::{fmt::Debug, sync::atomic::Ordering, thread, time::Duration};
 
@@ -7,7 +7,7 @@ const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
 
-static LAST_INPUT_STATE: Mutex<InputState> = Mutex::new(InputState::empty());
+static LAST_INPUT_STATE: AtomicCell<InputState> = AtomicCell::new(InputState::empty());
 
 pub fn start_read_thread() -> Result<(), &'static str> {
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
@@ -21,7 +21,7 @@ pub fn start_read_thread() -> Result<(), &'static str> {
         debug_print!(M64Message::Info, "Adapter thread started");
 
         while IS_INIT.load(Ordering::Relaxed) {
-            *LAST_INPUT_STATE.lock() = gc_adapter.read();
+            LAST_INPUT_STATE.store(gc_adapter.read());
 
             // Gives a polling rate of approx. 1000 Hz
             thread::sleep(Duration::from_millis(1));
@@ -34,7 +34,7 @@ pub fn start_read_thread() -> Result<(), &'static str> {
 }
 
 pub fn last_input_state() -> InputState {
-    *LAST_INPUT_STATE.lock()
+    LAST_INPUT_STATE.load()
 }
 
 pub struct GCAdapter {

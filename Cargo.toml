@@ -15,3 +15,4 @@ bindgen = { version = "0.58.1", default-features = false, features = ["runtime"]
 libloading = "0.7.0"
 rusb = "0.8.0"
 parking_lot = { version = "0.11.1", features = ["nightly"] }
+crossbeam-utils = "0.8.5"

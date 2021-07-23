@@ -49,12 +49,12 @@ pub unsafe extern "C" fn PluginStartup(
     context: *mut c_void,
     debug_callback: debug::DebugCallback,
 ) -> m64p_error {
-    if IS_INIT.load(Ordering::SeqCst) {
+    if IS_INIT.load(Ordering::Acquire) {
         debug_print!(M64Message::Error, "Plugin was already initialized");
         return m64p_error_M64ERR_ALREADY_INIT;
     }
 
-    IS_INIT.store(true, Ordering::SeqCst);
+    IS_INIT.store(true, Ordering::Release);
 
     debug::init(debug_callback, context);
     debug_print!(M64Message::Info, "PluginStartup called");
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn PluginStartup(
 pub extern "C" fn PluginShutdown() -> m64p_error {
     debug_print!(M64Message::Info, "PluginShutdown called");
 
-    IS_INIT.store(false, Ordering::SeqCst);
+    IS_INIT.store(false, Ordering::Release);
 
     m64p_error_M64ERR_SUCCESS
 }

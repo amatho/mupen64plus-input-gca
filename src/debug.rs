@@ -28,7 +28,7 @@ macro_rules! debug_print {
 pub(crate) fn __print_debug_message(level: M64Message, message: String) {
     if let Some(ref di) = *DEBUG_INFO.lock() {
         let message = CString::new(message).unwrap();
-        let context = di.context_ptr.load(Ordering::Relaxed);
+        let context = di.context_ptr.load(Ordering::Acquire);
 
         (di.callback)(context, level as c_int, message.as_ptr());
     }

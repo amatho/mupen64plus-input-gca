@@ -1,3 +1,5 @@
+#![feature(array_methods)]
+
 #[macro_use]
 mod debug;
 pub mod adapter;
@@ -201,7 +203,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
         (*controls)[i].Present = 1;
     }
 
-    if !adapter::last_input_state().any_connected() {
+    if !adapter::LAST_ADAPTER_STATE.any_connected() {
         debug_print!(
             M64Message::Warning,
             "No controllers connected, but hotplugging is supported"
@@ -293,15 +295,15 @@ impl From<u8> for ReadCommand {
 }
 
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    let input_state = adapter::last_input_state();
+    let adapter_state = &adapter::LAST_ADAPTER_STATE;
 
-    if !input_state.is_connected(control) {
+    if !adapter_state.is_connected(control) {
         return;
     }
 
     let keys = &mut *keys;
 
-    let s = input_state.controller_state(control as usize);
+    let s = adapter_state.controller_state(control as usize);
 
     let c_left = s.y || s.substick_x < 88;
     let c_right = s.x || s.substick_x > 168;

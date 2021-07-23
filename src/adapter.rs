@@ -1,13 +1,17 @@
 use crate::{M64Message, IS_INIT};
-use crossbeam_utils::atomic::AtomicCell;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{fmt::Debug, sync::atomic::Ordering, thread, time::Duration};
+use std::{
+    fmt::Debug,
+    sync::atomic::{AtomicU64, Ordering},
+    thread,
+    time::Duration,
+};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
 
-static LAST_INPUT_STATE: AtomicCell<InputState> = AtomicCell::new(InputState::empty());
+pub static LAST_ADAPTER_STATE: AdapterState = AdapterState::new();
 
 pub fn start_read_thread() -> Result<(), &'static str> {
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
@@ -20,8 +24,8 @@ pub fn start_read_thread() -> Result<(), &'static str> {
     thread::spawn(move || {
         debug_print!(M64Message::Info, "Adapter thread started");
 
-        while IS_INIT.load(Ordering::Relaxed) {
-            LAST_INPUT_STATE.store(gc_adapter.read());
+        while IS_INIT.load(Ordering::Acquire) {
+            gc_adapter.read();
 
             // Gives a polling rate of approx. 1000 Hz
             thread::sleep(Duration::from_millis(1));
@@ -31,10 +35,6 @@ pub fn start_read_thread() -> Result<(), &'static str> {
     });
 
     Ok(())
-}
-
-pub fn last_input_state() -> InputState {
-    LAST_INPUT_STATE.load()
 }
 
 pub struct GCAdapter {
@@ -80,35 +80,51 @@ impl GCAdapter {
         Ok(GCAdapter { handle })
     }
 
-    pub fn read(&self) -> InputState {
-        let mut buf = [0; READ_LEN];
+    pub fn read(&self) {
+        let mut buf = [0u64; 5];
+        let mut byte_buf = bytemuck::bytes_of_mut(&mut buf);
+
         self.handle
-            .read_interrupt(ENDPOINT_IN, &mut buf, Duration::from_millis(16))
+            .read_interrupt(ENDPOINT_IN, &mut byte_buf, Duration::from_millis(16))
             .unwrap();
-        InputState::new(buf)
+
+        LAST_ADAPTER_STATE
+            .buf_chunks
+            .iter()
+            .zip(buf.iter())
+            .for_each(|(ac, &bc)| ac.store(bc, Ordering::Release));
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct InputState {
-    buf: [u8; READ_LEN],
+#[derive(Debug)]
+pub struct AdapterState {
+    buf_chunks: [AtomicU64; 5],
 }
 
-impl InputState {
-    const fn new(buf: [u8; READ_LEN]) -> Self {
-        InputState { buf }
-    }
-
-    pub const fn empty() -> Self {
-        InputState { buf: [0; READ_LEN] }
+impl AdapterState {
+    pub const fn new() -> Self {
+        AdapterState {
+            buf_chunks: [
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+            ],
+        }
     }
 
     /// Get the `ControllerState` for the given channel
     pub fn controller_state<T: Into<Channel>>(&self, channel: T) -> ControllerState {
         let channel = channel.into() as usize;
+        let buf_chunks = self
+            .buf_chunks
+            .each_ref()
+            .map(|c| c.load(Ordering::Acquire));
+        let buf = &bytemuck::bytes_of(&buf_chunks)[..READ_LEN];
 
         if let [b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
-            self.buf[(9 * channel) + 2..]
+            buf[(9 * channel) + 2..]
         {
             ControllerState {
                 a: b1 & (1 << 0) > 0,
@@ -140,11 +156,16 @@ impl InputState {
 
     /// Check if a controller is connected to the given channel.
     pub fn is_connected<T: Into<Channel>>(&self, channel: T) -> bool {
+        let buf_chunks = self
+            .buf_chunks
+            .each_ref()
+            .map(|c| c.load(Ordering::Acquire));
+        let buf = &bytemuck::bytes_of(&buf_chunks)[..READ_LEN];
+
         // 0 = No controller connected
         // 1 = Wired controller
         // 2 = Wireless controller
-        let controller_type = self.buf[1 + (9 * channel.into() as usize)] >> 4;
-
+        let controller_type = buf[1 + (9 * channel.into() as usize)] >> 4;
         controller_type != 0
     }
 
@@ -152,6 +173,12 @@ impl InputState {
         (0..4)
             .map(|i| self.is_connected(i))
             .any(std::convert::identity)
+    }
+}
+
+impl Default for AdapterState {
+    fn default() -> Self {
+        AdapterState::new()
     }
 }
 

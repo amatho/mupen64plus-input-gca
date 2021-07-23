@@ -1,4 +1,4 @@
-use mupen64plus_input_gca::adapter::GCAdapter;
+use mupen64plus_input_gca::adapter::{GCAdapter, LAST_ADAPTER_STATE};
 use std::time::{Duration, Instant};
 
 fn main() {
@@ -11,9 +11,9 @@ fn main() {
             break;
         }
 
-        let state = adapter.read().controller_state(0);
-        if state.any() {
-            println!("{:?}", adapter.read().controller_state(0));
+        adapter.read();
+        if LAST_ADAPTER_STATE.controller_state(0).any() {
+            println!("{:?}", LAST_ADAPTER_STATE.controller_state(0));
         }
     }
 }

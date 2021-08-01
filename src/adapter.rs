@@ -1,7 +1,13 @@
 use crate::{M64Message, IS_INIT};
 use parking_lot::Mutex;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{fmt::Debug, sync::atomic::Ordering, thread, time::Duration};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Debug,
+    sync::atomic::Ordering,
+    thread,
+    time::Duration,
+};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
@@ -55,11 +61,7 @@ impl GCAdapter {
             .iter()
             .find(|dev| {
                 let dev_desc = dev.device_descriptor().unwrap();
-                if dev_desc.vendor_id() == 0x057E && dev_desc.product_id() == 0x0337 {
-                    true
-                } else {
-                    false
-                }
+                dev_desc.vendor_id() == 0x057E && dev_desc.product_id() == 0x0337
             })
             .ok_or(rusb::Error::NoDevice)?;
 
@@ -72,7 +74,7 @@ impl GCAdapter {
         // From Dolphin emulator source:
         // "This call makes Nyko-brand (and perhaps other) adapters work.
         // However it returns LIBUSB_ERROR_PIPE with Mayflash adapters."
-        let res = handle.write_control(0x21, 11, 0x0001, 0, &mut [], Duration::from_millis(1000));
+        let res = handle.write_control(0x21, 11, 0x0001, 0, &[], Duration::from_millis(1000));
         if let Err(e) = res {
             debug_print!(
                 M64Message::Warning,
@@ -113,8 +115,12 @@ impl AdapterState {
     }
 
     /// Get the `ControllerState` for the given channel
-    pub fn controller_state<T: Into<Channel>>(&self, channel: T) -> ControllerState {
-        let channel = channel.into() as usize;
+    pub fn controller_state<T>(&self, channel: T) -> ControllerState
+    where
+        T: TryInto<Channel>,
+        <T as TryInto<Channel>>::Error: Debug,
+    {
+        let channel = channel.try_into().unwrap() as usize;
         let buf = *self.buf.lock();
 
         if let [b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
@@ -153,13 +159,18 @@ impl AdapterState {
     }
 
     /// Check if a controller is connected to the given channel.
-    pub fn is_connected<T: Into<Channel>>(&self, channel: T) -> bool {
+    pub fn is_connected<T>(&self, channel: T) -> bool
+    where
+        T: TryInto<Channel>,
+        <T as TryInto<Channel>>::Error: Debug,
+    {
         let buf = *self.buf.lock();
+        let channel = channel.try_into().unwrap();
 
         // 0 = No controller connected
         // 1 = Wired controller
         // 2 = Wireless controller
-        let controller_type = buf[1 + (9 * channel.into() as usize)] >> 4;
+        let controller_type = buf[1 + (9 * channel as usize)] >> 4;
         controller_type != 0
     }
 
@@ -251,29 +262,35 @@ impl ControllerState {
 #[derive(Debug, Copy, Clone)]
 pub enum Channel {
     One = 0,
-    Two,
-    Three,
-    Four,
+    Two = 1,
+    Three = 2,
+    Four = 3,
 }
 
-impl From<usize> for Channel {
-    fn from(x: usize) -> Self {
-        match x {
-            0 => Channel::One,
-            1 => Channel::Two,
-            2 => Channel::Three,
-            _ => Channel::Four,
+impl TryFrom<usize> for Channel {
+    type Error = usize;
+
+    fn try_from(val: usize) -> Result<Self, Self::Error> {
+        match val {
+            0 => Ok(Channel::One),
+            1 => Ok(Channel::Two),
+            2 => Ok(Channel::Three),
+            3 => Ok(Channel::Four),
+            x => Err(x),
         }
     }
 }
 
-impl From<i32> for Channel {
-    fn from(x: i32) -> Self {
-        match x {
-            i32::MIN..=0 => Channel::One,
-            1 => Channel::Two,
-            2 => Channel::Three,
-            3..=i32::MAX => Channel::Four,
+impl TryFrom<i32> for Channel {
+    type Error = i32;
+
+    fn try_from(val: i32) -> Result<Self, Self::Error> {
+        match val {
+            0 => Ok(Channel::One),
+            1 => Ok(Channel::Two),
+            2 => Ok(Channel::Three),
+            3 => Ok(Channel::Four),
+            x => Err(x),
         }
     }
 }

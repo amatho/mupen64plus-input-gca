@@ -1,12 +1,16 @@
 [package]
 name = "mupen64plus-input-gca"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Amandus Søve Thorsrud <ama.thorsrud@gmail.com>"]
 edition = "2018"
 license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+m64p_compat = []
 
 [build-dependencies]
 bindgen = { version = "0.58.1", default-features = false, features = ["runtime"] }

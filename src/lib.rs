@@ -7,6 +7,7 @@ mod ffi;
 #[macro_use]
 mod static_cstr;
 
+use adapter::ADAPTER_STATE;
 use debug::M64Message;
 use ffi::*;
 use static_cstr::StaticCStr;
@@ -31,7 +32,7 @@ struct PluginInfo {
 
 static PLUGIN_INFO: PluginInfo = PluginInfo {
     name: static_cstr!("GC Adapter (for Wii U or Switch) Input Plugin"),
-    version: 0x000202,            // v0.2.2
+    version: 0x000203,            // v0.2.3
     target_api_version: 0x020100, // v2.1.0
 };
 
@@ -55,6 +56,13 @@ pub unsafe extern "C" fn PluginStartup(
     }
 
     IS_INIT.store(true, Ordering::Release);
+
+    // Register a custom panic hook in order to stop the adapter thread
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |p| {
+        IS_INIT.store(false, Ordering::Release);
+        default_panic(p);
+    }));
 
     debug::init(debug_callback, context);
     debug_print!(M64Message::Info, "PluginStartup called");
@@ -120,7 +128,7 @@ pub extern "C" fn PluginShutdown() -> m64p_error {
     m64p_error_M64ERR_SUCCESS
 }
 
-/// Get the plugin version and etc.
+/// Get the plugin type, version, target API version, name, and capabilities.
 ///
 /// # Safety
 ///
@@ -154,39 +162,7 @@ pub unsafe extern "C" fn PluginGetVersion(
     m64p_error_M64ERR_SUCCESS
 }
 
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn ControllerCommand(control: c_int, _command: *mut c_uchar) {
-    if control == -1 {
-        return;
-    }
-
-    debug_print!(
-        M64Message::Info,
-        "ControllerCommand called (control = {})",
-        control
-    );
-}
-
-/// Get which keys are pressed.
-///
-/// This is currently unused, as it seems like only raw data works (using `ReadController` and `ControllerCommand`).
-///
-/// # Safety
-///
-/// `keys` must point to an intialized `BUTTONS` union.
-#[no_mangle]
-pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
-    debug_print!(
-        M64Message::Info,
-        "GetKeys called with control = {}",
-        control
-    );
-
-    read_from_adapter(control, keys);
-}
-
-/// Fills the given `CONTROL_INFO` struct.
+/// Initiate controllers by filling the given `CONTROL_INFO` struct.
 ///
 /// # Safety
 ///
@@ -196,11 +172,13 @@ pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
 pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
     debug_print!(M64Message::Info, "InitiateControllers called");
 
-    let controls = control_info.Controls as *mut [CONTROL; 4];
+    let controls = control_info.Controls;
+    #[cfg(feature = "m64p_compat")]
+    let controls = controls as *mut CONTROL_M64P;
 
     for i in 0..4 {
-        (*controls)[i].RawData = 1;
-        (*controls)[i].Present = 1;
+        (*controls.add(i)).RawData = 0;
+        (*controls.add(i)).Present = 1;
     }
 
     if !adapter::ADAPTER_STATE.any_connected() {
@@ -211,39 +189,27 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
     }
 }
 
-/// Process the command and possibly read the controller.
+/// Get the state of the buttons by reading from the adapter.
+///
+/// # Safety
+///
+/// `keys` must point to an intialized `BUTTONS` union.
+#[no_mangle]
+pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
+    read_from_adapter(control, keys);
+}
+
+/// Process the command and possibly read the controller. Currently unused, since raw data is disabled.
 ///
 /// # Safety
 ///
 /// `command` must be a valid u8 array with length dependent of the given command.
 #[no_mangle]
-pub unsafe extern "C" fn ReadController(control: c_int, command: *mut u8) {
-    if control == -1 {
-        return;
-    }
+pub unsafe extern "C" fn ReadController(_control: c_int, _command: *mut u8) {}
 
-    let cmd = ReadCommand::from(*command.add(2));
-    match cmd {
-        ReadCommand::GetStatus | ReadCommand::ResetController => {
-            *command.add(3) = 0x04 | 0x01; // RD_GAMEPAD | RD_ABSOLUTE
-            *command.add(4) = 0x00; // RD_NOEEPROM
-            *command.add(5) = 0x02; // RD_NOPLUGIN | RD_NOTINITIALIZED
-        }
-        ReadCommand::ReadKeys => {
-            let mut buttons = BUTTONS { Value: 0 };
-
-            read_from_adapter(control, &mut buttons as *mut _);
-
-            *(command.add(3) as *mut u32) = buttons.Value;
-        }
-        ReadCommand::ReadEepRom => {}
-        ReadCommand::WriteEepRom => {}
-        ReadCommand::Unrecognized => {
-            let c1 = *command.add(1);
-            *command.add(1) = c1 | 0x80; // 0x80 = RD_ERROR
-        }
-    }
-}
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn ControllerCommand(_control: c_int, _command: *mut c_uchar) {}
 
 /// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
@@ -271,39 +237,15 @@ pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
     debug_print!(M64Message::Info, "SDL_KeyUp called");
 }
 
-enum ReadCommand {
-    GetStatus,
-    ReadKeys,
-    ResetController,
-    ReadEepRom,
-    WriteEepRom,
-
-    Unrecognized,
-}
-
-impl From<u8> for ReadCommand {
-    fn from(x: u8) -> Self {
-        match x {
-            0x00 => ReadCommand::GetStatus,
-            0x01 => ReadCommand::ReadKeys,
-            0xff => ReadCommand::ResetController,
-            0x04 => ReadCommand::ReadEepRom,
-            0x05 => ReadCommand::WriteEepRom,
-            _ => ReadCommand::Unrecognized,
-        }
-    }
-}
-
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    let adapter_state = &adapter::ADAPTER_STATE;
-
-    if !adapter_state.is_connected(control) {
+    if !ADAPTER_STATE.is_connected(control) {
         return;
     }
 
     let keys = &mut *keys;
+    keys.Value = 0;
 
-    let s = adapter_state.controller_state(control as usize);
+    let s = ADAPTER_STATE.controller_state(control);
 
     const DEADZONE: u8 = 40;
     let (stick_x, stick_y) = s.stick_with_deadzone(DEADZONE);

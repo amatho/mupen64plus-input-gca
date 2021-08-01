@@ -1,17 +1,13 @@
 use crate::{M64Message, IS_INIT};
+use parking_lot::Mutex;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{
-    fmt::Debug,
-    sync::atomic::{AtomicU64, Ordering},
-    thread,
-    time::Duration,
-};
+use std::{fmt::Debug, sync::atomic::Ordering, thread, time::Duration};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
 
-pub static LAST_ADAPTER_STATE: AdapterState = AdapterState::new();
+pub static ADAPTER_STATE: AdapterState = AdapterState::new();
 
 pub fn start_read_thread() -> Result<(), &'static str> {
     let gc_adapter = if let Ok(gc) = GCAdapter::new() {
@@ -25,10 +21,10 @@ pub fn start_read_thread() -> Result<(), &'static str> {
         debug_print!(M64Message::Info, "Adapter thread started");
 
         while IS_INIT.load(Ordering::Acquire) {
-            gc_adapter.read();
+            *ADAPTER_STATE.buf.lock() = gc_adapter.read();
 
             // Gives a polling rate of approx. 1000 Hz
-            thread::sleep(Duration::from_millis(1));
+            thread::park_timeout(Duration::from_millis(1));
         }
 
         debug_print!(M64Message::Info, "Adapter thread stopped");
@@ -60,7 +56,6 @@ impl GCAdapter {
             .find(|dev| {
                 let dev_desc = dev.device_descriptor().unwrap();
                 if dev_desc.vendor_id() == 0x057E && dev_desc.product_id() == 0x0337 {
-                    println!("Found GCN adapter: {:?}", dev_desc);
                     true
                 } else {
                     false
@@ -74,54 +69,53 @@ impl GCAdapter {
             handle.detach_kernel_driver(0)?;
         }
 
+        // From Dolphin emulator source:
+        // "This call makes Nyko-brand (and perhaps other) adapters work.
+        // However it returns LIBUSB_ERROR_PIPE with Mayflash adapters."
+        let res = handle.write_control(0x21, 11, 0x0001, 0, &mut [], Duration::from_millis(1000));
+        if let Err(e) = res {
+            debug_print!(
+                M64Message::Warning,
+                "Control transfer failed with error: {:?}",
+                e
+            );
+        }
+
         handle.claim_interface(0)?;
         handle.write_interrupt(ENDPOINT_OUT, &[0x13], Duration::from_millis(16))?;
 
         Ok(GCAdapter { handle })
     }
 
-    pub fn read(&self) {
-        let mut buf = [0u64; 5];
-        let mut byte_buf = bytemuck::bytes_of_mut(&mut buf);
+    pub fn read(&self) -> [u8; READ_LEN] {
+        let mut buf = [0; READ_LEN];
 
-        self.handle
-            .read_interrupt(ENDPOINT_IN, &mut byte_buf, Duration::from_millis(16))
-            .unwrap();
-
-        LAST_ADAPTER_STATE
-            .buf_chunks
-            .iter()
-            .zip(buf.iter())
-            .for_each(|(ac, &bc)| ac.store(bc, Ordering::Release));
+        match self
+            .handle
+            .read_interrupt(ENDPOINT_IN, &mut buf, Duration::from_millis(16))
+        {
+            Ok(_) | Err(rusb::Error::Timeout) => buf,
+            Err(e) => panic!("error while reading from adapter: {:?}", e),
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct AdapterState {
-    buf_chunks: [AtomicU64; 5],
+    buf: Mutex<[u8; 37]>,
 }
 
 impl AdapterState {
     pub const fn new() -> Self {
         AdapterState {
-            buf_chunks: [
-                AtomicU64::new(0),
-                AtomicU64::new(0),
-                AtomicU64::new(0),
-                AtomicU64::new(0),
-                AtomicU64::new(0),
-            ],
+            buf: Mutex::new([0; READ_LEN]),
         }
     }
 
     /// Get the `ControllerState` for the given channel
     pub fn controller_state<T: Into<Channel>>(&self, channel: T) -> ControllerState {
         let channel = channel.into() as usize;
-        let buf_chunks = self
-            .buf_chunks
-            .each_ref()
-            .map(|c| c.load(Ordering::Acquire));
-        let buf = &bytemuck::bytes_of(&buf_chunks)[..READ_LEN];
+        let buf = *self.buf.lock();
 
         if let [b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
             buf[(9 * channel) + 2..]
@@ -150,17 +144,17 @@ impl AdapterState {
                 trigger_right,
             }
         } else {
+            debug_print!(
+                M64Message::Error,
+                "Entered unreachable code (invalid adapter buffer)"
+            );
             ControllerState::default()
         }
     }
 
     /// Check if a controller is connected to the given channel.
     pub fn is_connected<T: Into<Channel>>(&self, channel: T) -> bool {
-        let buf_chunks = self
-            .buf_chunks
-            .each_ref()
-            .map(|c| c.load(Ordering::Acquire));
-        let buf = &bytemuck::bytes_of(&buf_chunks)[..READ_LEN];
+        let buf = *self.buf.lock();
 
         // 0 = No controller connected
         // 1 = Wired controller
@@ -173,6 +167,10 @@ impl AdapterState {
         (0..4)
             .map(|i| self.is_connected(i))
             .any(std::convert::identity)
+    }
+
+    pub fn set_buf(&mut self, buf: [u8; 37]) {
+        *self.buf.get_mut() = buf;
     }
 }
 
@@ -209,6 +207,8 @@ pub struct ControllerState {
 
 impl ControllerState {
     pub fn any(&self) -> bool {
+        let (stick_x, stick_y) = self.stick_with_deadzone(40);
+        let (substick_x, substick_y) = self.substick_with_deadzone(40);
         self.a
             || self.b
             || self.x
@@ -221,10 +221,30 @@ impl ControllerState {
             || self.l
             || self.r
             || self.z
-            || self.stick_x < 64
-            || self.stick_x > 192
-            || self.stick_y < 64
-            || self.stick_y > 192
+            || stick_x != 0
+            || stick_y != 0
+            || substick_x != 0
+            || substick_y != 0
+    }
+
+    pub fn stick_with_deadzone(&self, deadzone: u8) -> (i8, i8) {
+        Self::deadzoned_stick(self.stick_x, self.stick_y, deadzone)
+    }
+
+    pub fn substick_with_deadzone(&self, deadzone: u8) -> (i8, i8) {
+        Self::deadzoned_stick(self.substick_x, self.substick_y, deadzone)
+    }
+
+    fn deadzoned_stick(x: u8, y: u8, deadzone: u8) -> (i8, i8) {
+        let x = x.wrapping_add(128) as i8;
+        let y = y.wrapping_add(128) as i8;
+
+        let pos = (x as i32).pow(2) + (y as i32).pow(2);
+        if pos < (deadzone as i32).pow(2) {
+            (0, 0)
+        } else {
+            (x, y)
+        }
     }
 }
 

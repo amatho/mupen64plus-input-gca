@@ -203,7 +203,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
         (*controls)[i].Present = 1;
     }
 
-    if !adapter::LAST_ADAPTER_STATE.any_connected() {
+    if !adapter::ADAPTER_STATE.any_connected() {
         debug_print!(
             M64Message::Warning,
             "No controllers connected, but hotplugging is supported"
@@ -295,7 +295,7 @@ impl From<u8> for ReadCommand {
 }
 
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    let adapter_state = &adapter::LAST_ADAPTER_STATE;
+    let adapter_state = &adapter::ADAPTER_STATE;
 
     if !adapter_state.is_connected(control) {
         return;
@@ -305,23 +305,14 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
 
     let s = adapter_state.controller_state(control as usize);
 
-    let c_left = s.y || s.substick_x < 88;
-    let c_right = s.x || s.substick_x > 168;
-    let c_down = s.substick_y < 88;
-    let c_up = s.substick_y > 168;
+    const DEADZONE: u8 = 40;
+    let (stick_x, stick_y) = s.stick_with_deadzone(DEADZONE);
+    let (substick_x, substick_y) = s.substick_with_deadzone(DEADZONE);
 
-    const DEADZONE: i32 = 40;
-    let (stick_x, stick_y) = {
-        let x = s.stick_x.wrapping_add(128) as i8 as i32;
-        let y = s.stick_y.wrapping_add(128) as i8 as i32;
-
-        let pos = x.pow(2) + y.pow(2);
-        if pos < DEADZONE.pow(2) {
-            (0, 0)
-        } else {
-            (x, y)
-        }
-    };
+    let c_left = s.y || substick_x < 0;
+    let c_right = s.x || substick_x > 0;
+    let c_down = substick_y < 0;
+    let c_up = substick_y > 0;
 
     if s.right {
         keys.Value |= 0x0001;

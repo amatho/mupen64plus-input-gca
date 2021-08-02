@@ -8,7 +8,7 @@ An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U 
 
 1. Follow the first section of [this Dolphin guide](https://nb.dolphin-emu.org/docs/guides/how-use-official-gc-controller-adapter-wii-u/?cr=nb#Installation) to set up your adapter (use Zadig if you are on Windows).
 
-1. Download the plugin from [the latest release](../../releases/latest) (Windows: .dll, macOS: .dylib, Linux: .so).
+1. Download the plugin from [the latest release](../../releases/latest).
 
 1. Place the plugin in your Mupen64Plus folder, and select it from your Mupen64Plus frontend.
 

@@ -1,5 +1,3 @@
-#![feature(array_methods)]
-
 #[macro_use]
 mod debug;
 pub mod adapter;

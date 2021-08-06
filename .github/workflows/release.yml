@@ -102,7 +102,7 @@ jobs:
         target: ${{ matrix.target }}
 
     - name: Build release binary
-      run: cargo build --verbose --release ${{ env.FEATURES_FLAG }} ${{ env.TARGET_FLAGS }}
+      run: cargo build --verbose --release ${{ env.FEATURES_FLAG }} --target ${{ matrix.target }}
 
     - name: Strip release binary (linux and macos)
       if: matrix.os != 'windows-2019'

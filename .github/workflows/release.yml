@@ -4,17 +4,17 @@ name: release
 on:
   push:
     # Enable when testing release infrastructure on a branch.
-    branches:
-    - test-ci
+    # branches:
+    # - test-ci
     tags:
     - "[0-9]+.[0-9]+.[0-9]+"
 jobs:
   create-release:
     name: create-release
     runs-on: ubuntu-latest
-    env:
+    # env:
       # Set to force version number, e.g., when no tag exists.
-      PLUGIN_VERSION: TEST-0.0.0
+      # PLUGIN_VERSION: TEST-0.0.0
     outputs:
       upload_url: ${{ steps.release.outputs.upload_url }}
       plugin_version: ${{ env.PLUGIN_VERSION }}

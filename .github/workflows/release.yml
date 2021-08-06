@@ -106,7 +106,7 @@ jobs:
 
     - name: Strip release binary (linux and macos)
       if: matrix.os != 'windows-2019'
-      run: strip "target/${{ matrix.target }}/release/libmupen64plus_input_gca.${{ matrix.file_ext }}"
+      run: strip -x "target/${{ matrix.target }}/release/libmupen64plus_input_gca.${{ matrix.file_ext }}"
 
     - name: Build archive
       shell: bash

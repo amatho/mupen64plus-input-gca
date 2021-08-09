@@ -65,8 +65,7 @@ pub unsafe extern "C" fn PluginStartup(
     debug::init(debug_callback, context);
     debug_print!(M64Message::Info, "PluginStartup called");
 
-    // Make sure to NOT free the library associated with the handle.
-    // That would make other plugins error.
+    // Make sure to NOT free the library associated with the handle
     let lib = ManuallyDrop::new(Library::from_raw(core_lib_handle.cast()));
 
     let core_api_version_fn = if let Ok(sym) =
@@ -130,7 +129,7 @@ pub extern "C" fn PluginShutdown() -> m64p_error {
 ///
 /// # Safety
 ///
-/// The caller has to make sure the given pointers are pointing to correct types.
+/// The caller has to make sure the given pointers are valid.
 #[no_mangle]
 pub unsafe extern "C" fn PluginGetVersion(
     plugin_type: *mut m64p_plugin_type,

@@ -4,7 +4,7 @@ An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U 
 
 ## Installing
 
-**NOTE:** The plugin will only work for 64-bit Mupen64Plus. I have only tested it against [m64p](https://github.com/loganmc10/m64p).
+**Note:** The plugin will only work for 64-bit Mupen64Plus. I have only tested it against [m64p](https://github.com/loganmc10/m64p).
 
 1. Follow the first section of [this Dolphin guide](https://dolphin-emu.org/docs/guides/how-use-official-gc-controller-adapter-wii-u#Installation) to set up your adapter (use Zadig if you are on Windows).
 
@@ -27,9 +27,6 @@ The current controller mapping is what you would expect, except for
 Build requirements:
 
 * Cargo
-* Clang
-
-For installing LLVM see [the `bindgen` User Guide](https://rust-lang.github.io/rust-bindgen/requirements.html).
 
 To build the project:
 
@@ -41,7 +38,10 @@ $ cargo build --release
 
 The compiled plugin will be at `target/release/mupen64plus_input_gca.(dll|dylib|so)`.
 
-**NOTE:** The compiled dynamic library will have underscores in it's name, but m64p (linked above) will only look for plugins with hyphens. Just rename the file and m64p will find it.
+**Note:** The compiled dynamic library will have underscores in it's name, but m64p (linked above) will only look for plugins with hyphens. Just rename the file and m64p will find it.
+
+`bindgen` is used to generate Rust bindings for the Mupen64Plus API, found in `src/ffi/`. See [the `bindgen` User Guide](https://rust-lang.github.io/rust-bindgen/command-line-usage.html)
+for installation instructions, and [this section of the guide](https://rust-lang.github.io/rust-bindgen/requirements.html) for requirements for running `bindgen`.
 
 ## Contributing
 

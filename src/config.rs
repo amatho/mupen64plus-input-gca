@@ -1,4 +1,3 @@
-use crate::debug::M64Message;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
@@ -8,6 +7,9 @@ use std::{
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub control_stick_deadzone: u8,
+    pub c_stick_deadzone: u8,
+    pub trigger_threshold: u8,
     pub controller_mapping: ControllerMapping,
 }
 
@@ -43,37 +45,13 @@ impl Config {
     }
 
     pub fn create<P: AsRef<Path>>(path: P) -> Result<Self, Self> {
-        let cfg = Default::default();
+        let contents = include_str!("../mupen64plus-input-gca.toml");
+        let cfg = toml::from_str(contents).unwrap();
 
         let path = path.as_ref();
         let mut file = match File::create(path) {
             Ok(f) => f,
             Err(_) => return Err(cfg),
-        };
-
-        let comments = r#"# Configuration for mupen64plus-input-gca.
-#
-# To revert to defaults simply delete this file.
-# The default configuration includes all supported controller mappings.
-# It is currently not possible to change the mapping of the control stick.
-#
-# In the controller mappings below, the left side is the GameCube controller button,
-# and the right side is the N64 controller button.
-#
-# Be aware that the values are case sensitive, and an invalid configuration file will
-# be overwritten with the defaults.
-
-"#;
-
-        let mut contents = String::from(comments);
-        contents.reserve(128);
-
-        match cfg.serialize(&mut toml::Serializer::pretty(&mut contents)) {
-            Ok(_) => (),
-            Err(e) => {
-                debug_print!(M64Message::Error, "TOML error: {:?}", e);
-                return Err(cfg);
-            }
         };
 
         match file.write_all(contents.as_bytes()) {
@@ -86,6 +64,9 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            control_stick_deadzone: 40,
+            c_stick_deadzone: 40,
+            trigger_threshold: 148,
             controller_mapping: ControllerMapping {
                 a: N64Button::A,
                 b: N64Button::B,

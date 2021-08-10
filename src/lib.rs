@@ -257,11 +257,9 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
 
     let s = ADAPTER_STATE.controller_state(control);
 
-    const DEADZONE: u8 = 40;
-    let (stick_x, stick_y) = s.stick_with_deadzone(DEADZONE);
-    let (substick_x, substick_y) = s.substick_with_deadzone(DEADZONE);
-
     let cfg = CONFIG.get().unwrap();
+    let (stick_x, stick_y) = s.stick_with_deadzone(cfg.control_stick_deadzone);
+    let (substick_x, substick_y) = s.substick_with_deadzone(cfg.c_stick_deadzone);
 
     if s.right {
         keys.Value |= cfg.controller_mapping.d_pad_right.bit_pattern();
@@ -296,10 +294,10 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
     if substick_y > 0 {
         keys.Value |= cfg.controller_mapping.c_stick_up.bit_pattern();
     }
-    if s.l || s.trigger_left > 148 {
+    if s.l || s.trigger_left > cfg.trigger_threshold {
         keys.Value |= cfg.controller_mapping.l.bit_pattern();
     }
-    if s.r || s.trigger_right > 148 {
+    if s.r || s.trigger_right > cfg.trigger_threshold {
         keys.Value |= cfg.controller_mapping.r.bit_pattern();
     }
     if s.z {

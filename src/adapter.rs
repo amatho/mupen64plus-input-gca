@@ -217,27 +217,6 @@ pub struct ControllerState {
 }
 
 impl ControllerState {
-    pub fn any(&self) -> bool {
-        let (stick_x, stick_y) = self.stick_with_deadzone(40);
-        let (substick_x, substick_y) = self.substick_with_deadzone(40);
-        self.a
-            || self.b
-            || self.x
-            || self.y
-            || self.start
-            || self.left
-            || self.right
-            || self.down
-            || self.up
-            || self.l
-            || self.r
-            || self.z
-            || stick_x != 0
-            || stick_y != 0
-            || substick_x != 0
-            || substick_y != 0
-    }
-
     pub fn stick_with_deadzone(&self, deadzone: u8) -> (i8, i8) {
         Self::deadzoned_stick(self.stick_x, self.stick_y, deadzone)
     }

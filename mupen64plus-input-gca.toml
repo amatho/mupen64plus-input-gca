@@ -1,0 +1,41 @@
+# Configuration for mupen64plus-input-gca.
+#
+# To revert to defaults simply delete this file.
+# The default configuration includes all supported controller mappings.
+# It is currently not possible to change the mapping of the control stick.
+#
+# In the controller mappings below, the left side is the GameCube controller button,
+# and the right side is the N64 controller button.
+#
+# Be aware that the values are case sensitive, and an invalid configuration file will
+# be overwritten with the defaults.
+
+# Deadzone for the control stick.
+# Valid values are 0 - 255.
+control_stick_deadzone = 24
+
+# Deadzone for the C-stick.
+# Valid values are 0 - 255.
+c_stick_deadzone = 24
+
+# Threshold for the trigger buttons (L and R). Set to max to only detect input when fully pressed.
+# Valid values are 0 - 255.
+trigger_threshold = 168
+
+[controller_mapping]
+a = 'A'
+b = 'B'
+x = 'CRight'
+y = 'CLeft'
+start = 'Start'
+z = 'L'
+l = 'Z'
+r = 'R'
+d_pad_left = 'DPadLeft'
+d_pad_right = 'DPadRight'
+d_pad_down = 'DPadDown'
+d_pad_up = 'DPadUp'
+c_stick_left = 'CLeft'
+c_stick_right = 'CRight'
+c_stick_down = 'CDown'
+c_stick_up = 'CUp'

@@ -1,8 +1,34 @@
-use mupen64plus_input_gca::adapter::{AdapterState, GCAdapter};
+use mupen64plus_input_gca::adapter::{AdapterState, ControllerState, GCAdapter};
 use std::{
     io::Write,
     time::{Duration, Instant},
 };
+
+fn any(state: ControllerState) -> bool {
+    const CONTROL_DEADZONE: u8 = 16;
+    const C_DEADZONE: u8 = 16;
+    const TRIGGER_THRESHOLD: u8 = 168;
+    let (stick_x, stick_y) = state.stick_with_deadzone(CONTROL_DEADZONE);
+    let (substick_x, substick_y) = state.substick_with_deadzone(C_DEADZONE);
+    state.a
+        || state.b
+        || state.x
+        || state.y
+        || state.start
+        || state.left
+        || state.right
+        || state.down
+        || state.up
+        || state.l
+        || state.trigger_left > TRIGGER_THRESHOLD
+        || state.r
+        || state.trigger_right > TRIGGER_THRESHOLD
+        || state.z
+        || stick_x != 0
+        || stick_y != 0
+        || substick_x != 0
+        || substick_y != 0
+}
 
 fn main() {
     let adapter = GCAdapter::new().expect("could not connect to adapter");
@@ -28,7 +54,7 @@ fn main() {
         }
 
         state.set_buf(adapter.read());
-        if state.controller_state(chan).any() {
+        if any(state.controller_state(chan)) {
             println!("Channel {}: {:?}", chan, state.controller_state(chan));
         }
     }

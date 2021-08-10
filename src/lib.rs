@@ -248,14 +248,13 @@ pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
 }
 
 unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
-    if !ADAPTER_STATE.is_connected(control) {
+    let s = ADAPTER_STATE.controller_state(control);
+    if !s.connected {
         return;
     }
 
     let keys = &mut *keys;
     keys.Value = 0;
-
-    let s = ADAPTER_STATE.controller_state(control);
 
     let cfg = CONFIG.get().unwrap();
     let (stick_x, stick_y) = s.stick_with_deadzone(cfg.control_stick_deadzone);

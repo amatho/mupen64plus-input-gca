@@ -123,10 +123,12 @@ impl AdapterState {
         let channel = channel.try_into().unwrap() as usize;
         let buf = *self.buf.lock();
 
-        if let [b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
-            buf[(9 * channel) + 2..]
+        if let [controller_type, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
+            buf[(9 * channel) + 1..]
         {
             ControllerState {
+                connected: controller_type != 0,
+
                 a: b1 & (1 << 0) > 0,
                 b: b1 & (1 << 1) > 0,
                 x: b1 & (1 << 2) > 0,
@@ -193,6 +195,8 @@ impl Default for AdapterState {
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ControllerState {
+    pub connected: bool,
+
     pub a: bool,
     pub b: bool,
     pub x: bool,

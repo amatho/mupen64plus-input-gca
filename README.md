@@ -21,7 +21,8 @@ fail to load. Then select the plugin in your Mupen64Plus frontend, and you are g
 
 After the plugin has been used at least once, a configuration file will be generated in your Mupen64Plus folder named
 `mupen64plus-input-gca.toml`. This file contains the configuration for the controller mapping between a GameCube
-controller and a N64 controller. Changes in the configuration will be loaded the next time you start your frontend.
+controller and a N64 controller. Deadzones for the analog sticks and the threshold for the trigger buttons (L and R)
+can also be configured. Changes in the configuration will be loaded the next time you start your frontend.
 
 The default controller mapping is what you would expect, except for
 

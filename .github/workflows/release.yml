@@ -49,7 +49,7 @@ jobs:
     strategy:
       matrix:
         # TODO: Remove compat builds when not needed anymore
-        build: [linux, linux-m64p-compat, macos, macos-m64p-compat, win, win-m64p-compat]
+        build: [linux, linux-m64p-compat, macos, macos-m64p-compat, windows, windows-m64p-compat]
         include:
         - build: linux
           os: ubuntu-18.04
@@ -71,12 +71,12 @@ jobs:
           target: x86_64-apple-darwin
           features: m64p_compat
           file_ext: dylib
-        - build: win
+        - build: windows
           os: windows-2019
           target: x86_64-pc-windows-msvc
           features: ""
           file_ext: dll
-        - build: win-m64p-compat
+        - build: windows-m64p-compat
           os: windows-2019
           target: x86_64-pc-windows-msvc
           features: m64p_compat

@@ -21,6 +21,7 @@ pub use windows::*;
 #[cfg(feature = "m64p_compat")]
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[allow(non_snake_case)]
 pub struct CONTROL_M64P {
     pub Present: std::os::raw::c_int,
     pub RawData: std::os::raw::c_int,

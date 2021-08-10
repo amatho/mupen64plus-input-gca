@@ -1,13 +1,16 @@
 #[macro_use]
 mod debug;
 pub mod adapter;
+pub mod config;
 mod ffi;
 #[macro_use]
 mod static_cstr;
 
 use adapter::ADAPTER_STATE;
+use config::Config;
 use debug::M64Message;
 use ffi::*;
+use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
 use std::{
     ffi::c_void,
@@ -36,6 +39,8 @@ static PLUGIN_INFO: PluginInfo = PluginInfo {
 
 static IS_INIT: AtomicBool = AtomicBool::new(false);
 
+static CONFIG: OnceCell<Config> = OnceCell::new();
+
 /// Start up the plugin.
 ///
 /// # Safety
@@ -58,6 +63,7 @@ pub unsafe extern "C" fn PluginStartup(
     // Register a custom panic hook in order to stop the adapter thread
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |p| {
+        debug_print!(M64Message::Error, "panic occurred");
         IS_INIT.store(false, Ordering::Release);
         default_panic(p);
     }));
@@ -109,6 +115,13 @@ pub unsafe extern "C" fn PluginStartup(
         debug_print!(M64Message::Error, "Could not start adapter read thread");
         return m64p_error_M64ERR_PLUGIN_FAIL;
     }
+
+    let cfg_path = "mupen64plus-input-gca.toml";
+    // Ignore error if the cell was alredy initialized
+    let _ = CONFIG.set(Config::read_from_file(cfg_path).unwrap_or_else(|e| {
+        debug_print!(M64Message::Error, "Config error: {:?}", e);
+        Config::create(cfg_path).unwrap_or_else(|e| e)
+    }));
 
     m64p_error_M64ERR_SUCCESS
 }
@@ -248,54 +261,49 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
     let (stick_x, stick_y) = s.stick_with_deadzone(DEADZONE);
     let (substick_x, substick_y) = s.substick_with_deadzone(DEADZONE);
 
-    let c_left = s.y || substick_x < 0;
-    let c_right = s.x || substick_x > 0;
-    let c_down = substick_y < 0;
-    let c_up = substick_y > 0;
+    let cfg = CONFIG.get().unwrap();
 
     if s.right {
-        keys.Value |= 0x0001;
+        keys.Value |= cfg.controller_mapping.d_pad_right.bit_pattern();
     }
     if s.left {
-        keys.Value |= 0x0002;
+        keys.Value |= cfg.controller_mapping.d_pad_left.bit_pattern();
     }
     if s.down {
-        keys.Value |= 0x0004;
+        keys.Value |= cfg.controller_mapping.d_pad_down.bit_pattern();
     }
     if s.up {
-        keys.Value |= 0x0008;
+        keys.Value |= cfg.controller_mapping.d_pad_up.bit_pattern();
     }
     if s.start {
-        keys.Value |= 0x0010;
-    }
-    // Use the L trigger for N64 Z
-    if s.l || s.trigger_left > 148 {
-        keys.Value |= 0x0020;
+        keys.Value |= cfg.controller_mapping.start.bit_pattern();
     }
     if s.b {
-        keys.Value |= 0x0040;
+        keys.Value |= cfg.controller_mapping.b.bit_pattern();
     }
     if s.a {
-        keys.Value |= 0x0080;
+        keys.Value |= cfg.controller_mapping.a.bit_pattern();
     }
-    if c_right {
-        keys.Value |= 0x0100;
+    if substick_x < 0 {
+        keys.Value |= cfg.controller_mapping.c_stick_left.bit_pattern();
     }
-    if c_left {
-        keys.Value |= 0x0200;
+    if substick_x > 0 {
+        keys.Value |= cfg.controller_mapping.c_stick_right.bit_pattern();
     }
-    if c_down {
-        keys.Value |= 0x0400;
+    if substick_y < 0 {
+        keys.Value |= cfg.controller_mapping.c_stick_down.bit_pattern();
     }
-    if c_up {
-        keys.Value |= 0x0800;
+    if substick_y > 0 {
+        keys.Value |= cfg.controller_mapping.c_stick_up.bit_pattern();
+    }
+    if s.l || s.trigger_left > 148 {
+        keys.Value |= cfg.controller_mapping.l.bit_pattern();
     }
     if s.r || s.trigger_right > 148 {
-        keys.Value |= 0x1000;
+        keys.Value |= cfg.controller_mapping.r.bit_pattern();
     }
-    // Use the Z button for N64 L
     if s.z {
-        keys.Value |= 0x2000;
+        keys.Value |= cfg.controller_mapping.z.bit_pattern();
     }
 
     keys.__bindgen_anon_1.set_X_AXIS(stick_x as i32);

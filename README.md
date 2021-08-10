@@ -10,13 +10,20 @@ An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U 
 
 1. Download the plugin ZIP from [the latest release](../../releases/latest).
 
-1. Extract the plugin into your Mupen64Plus folder, and select it from your Mupen64Plus frontend.
+1. Extract the plugin into your Mupen64Plus folder.
 
 ## Usage
 
-Make sure that your adapter is plugged in and set up correctly before launching Mupen64Plus, otherwise the plugin will fail to load.
+Make sure that your adapter is plugged in and set up correctly before launching Mupen64Plus, otherwise the plugin will
+fail to load. Then select the plugin in your Mupen64Plus frontend, and you are good to go!
 
-The current controller mapping is what you would expect, except for
+## Configuration
+
+After the plugin has been used at least once, a configuration file will be generated in your Mupen64Plus folder named
+`mupen64plus-input-gca.toml`. This file contains the configuration for the controller mapping between a GameCube
+controller and a N64 controller. Changes in the configuration will be loaded the next time you start your frontend.
+
+The default controller mapping is what you would expect, except for
 
 * Y is C-button left
 * X is C-button right
@@ -40,7 +47,7 @@ The compiled plugin will be at `target/release/mupen64plus_input_gca.(dll|dylib|
 
 **Note:** The compiled dynamic library will have underscores in it's name, but m64p (linked above) will only look for plugins with hyphens. Just rename the file and m64p will find it.
 
-`bindgen` is used to generate Rust bindings for the Mupen64Plus API, found in `src/ffi/`. See [the `bindgen` User Guide](https://rust-lang.github.io/rust-bindgen/command-line-usage.html)
+`bindgen` is used to generate the Rust bindings for the Mupen64Plus API found in `src/ffi/`. See [the `bindgen` User Guide](https://rust-lang.github.io/rust-bindgen/command-line-usage.html)
 for installation instructions, and [this section of the guide](https://rust-lang.github.io/rust-bindgen/requirements.html) for requirements for running `bindgen`.
 
 ## Contributing

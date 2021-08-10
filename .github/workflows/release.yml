@@ -36,6 +36,7 @@ jobs:
         with:
           tag_name: ${{ env.PLUGIN_VERSION }}
           release_name: ${{ env.PLUGIN_VERSION }}
+          draft: true
 
   build-release:
     name: build-release

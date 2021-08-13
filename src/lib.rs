@@ -257,7 +257,8 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
     keys.Value = 0;
 
     let cfg = CONFIG.get().unwrap();
-    let (stick_x, stick_y) = s.stick_with_deadzone(cfg.control_stick_deadzone);
+    let (stick_x, stick_y) =
+        s.stick_with_deadzone(cfg.control_stick_deadzone, cfg.control_stick_sensitivity);
     let (substick_x, substick_y) = s.substick_with_deadzone(cfg.c_stick_deadzone);
 
     if s.right {

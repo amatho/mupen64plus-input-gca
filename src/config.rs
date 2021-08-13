@@ -8,6 +8,7 @@ use std::{
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub control_stick_deadzone: u8,
+    pub control_stick_sensitivity: u8,
     pub c_stick_deadzone: u8,
     pub trigger_threshold: u8,
     pub controller_mapping: ControllerMapping,

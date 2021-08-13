@@ -221,23 +221,51 @@ pub struct ControllerState {
 }
 
 impl ControllerState {
-    pub fn stick_with_deadzone(&self, deadzone: u8) -> (i8, i8) {
-        Self::deadzoned_stick(self.stick_x, self.stick_y, deadzone)
+    pub fn stick_with_deadzone(&self, deadzone: u8, sensitivity: u8) -> (i8, i8) {
+        const STICK_MAX: i32 = i8::MAX as i32;
+
+        let x = self.stick_x.wrapping_add(128) as i8;
+        let y = self.stick_y.wrapping_add(128) as i8;
+
+        // Convert cartesian coordinates to polar coordinates (radius)
+        let radius = ((x as f32).powi(2) + (y as f32).powi(2)).sqrt();
+
+        if radius <= deadzone as f32 {
+            return (0, 0);
+        }
+
+        // Convert cartesian coordinates to polar coordinates (angle)
+        let angle = (y as f32).atan2(x as f32);
+
+        let deadzone = deadzone as i32;
+        let sensitivity = sensitivity as i32;
+
+        // Scale radius to counteract the deadzone, and fit the radius to the range [-80, 80] (N64
+        // stick range).
+        // This formula is a simplified version of the following:
+        //
+        // let radius = (radius - deadzone as f32) * (STICK_MAX as f32 / (STICK_MAX - deadzone) as f32);
+        // let radius = radius * 80.0 / (STICK_MAX as f32 * (sensitivity as f32 / 100.0)) as f32;
+        let radius =
+            8000.0 * (radius - deadzone as f32) / (sensitivity * (STICK_MAX - deadzone)) as f32;
+
+        // Convert back to cartesian coordinates
+        let x = (radius * angle.cos()).round() as i8;
+        let y = (radius * angle.sin()).round() as i8;
+
+        (x, y)
     }
 
     pub fn substick_with_deadzone(&self, deadzone: u8) -> (i8, i8) {
-        Self::deadzoned_stick(self.substick_x, self.substick_y, deadzone)
-    }
+        let x = self.substick_x.wrapping_add(128) as i8;
+        let y = self.substick_y.wrapping_add(128) as i8;
 
-    fn deadzoned_stick(x: u8, y: u8, deadzone: u8) -> (i8, i8) {
-        let x = x.wrapping_add(128) as i8;
-        let y = y.wrapping_add(128) as i8;
+        let distance = (x as i32).pow(2) + (y as i32).pow(2);
 
-        let pos = (x as i32).pow(2) + (y as i32).pow(2);
-        if pos < (deadzone as i32).pow(2) {
-            (0, 0)
-        } else {
+        if distance > (deadzone as i32).pow(2) {
             (x, y)
+        } else {
+            (0, 0)
         }
     }
 }

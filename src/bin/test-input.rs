@@ -5,10 +5,11 @@ use std::{
 };
 
 fn any(state: ControllerState) -> bool {
-    const CONTROL_DEADZONE: u8 = 16;
-    const C_DEADZONE: u8 = 16;
+    const CONTROL_DEADZONE: u8 = 15;
+    const CONTROL_SENSITIVITY: u8 = 100;
+    const C_DEADZONE: u8 = 15;
     const TRIGGER_THRESHOLD: u8 = 168;
-    let (stick_x, stick_y) = state.stick_with_deadzone(CONTROL_DEADZONE);
+    let (stick_x, stick_y) = state.stick_with_deadzone(CONTROL_DEADZONE, CONTROL_SENSITIVITY);
     let (substick_x, substick_y) = state.substick_with_deadzone(C_DEADZONE);
     state.a
         || state.b

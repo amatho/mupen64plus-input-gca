@@ -19,10 +19,21 @@ fail to load. Then select the plugin in your Mupen64Plus frontend, and you are g
 
 ## Configuration
 
-After the plugin has been used at least once, a configuration file will be generated in your Mupen64Plus folder named
-`mupen64plus-input-gca.toml`. This file contains the configuration for the controller mapping between a GameCube
-controller and a N64 controller. Deadzones for the analog sticks and the threshold for the trigger buttons (L and R)
-can also be configured. Changes in the configuration will be loaded the next time you start your frontend.
+After the plugin has been used at least once, a file will be generated in your Mupen64Plus folder named
+`mupen64plus-input-gca.toml`. This file contains the configuration for the plugin. Changes in the configuration will be
+loaded the next time you start your frontend.
+
+You can configure the following
+
+* Deadzones for the control stick and C-stick.
+* Control stick sensitivity.
+    * Note that the default sensitivity setting is based on the controllers I had available when testing. All GameCube
+    controllers are different, so you might need to change this to something that works for you. Having the sensitivity
+    too low will prevent you from reaching the maximum input with the stick, and having it too high will make it
+    difficult to control.
+* Threshold for the trigger buttons (L and R).
+    * This controls how far the triggers need to be pressed before an input is registered.
+* The controller mapping between the GameCube controller and the N64 buttons.
 
 The default controller mapping is what you would expect, except for
 

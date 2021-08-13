@@ -22,4 +22,3 @@ m64p_compat = []
 
 [profile.release]
 panic = "abort"
-lto = true

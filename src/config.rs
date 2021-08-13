@@ -61,34 +61,6 @@ impl Config {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            control_stick_deadzone: 40,
-            c_stick_deadzone: 40,
-            trigger_threshold: 148,
-            controller_mapping: ControllerMapping {
-                a: N64Button::A,
-                b: N64Button::B,
-                x: N64Button::CRight,
-                y: N64Button::CLeft,
-                start: N64Button::Start,
-                z: N64Button::L,
-                l: N64Button::Z,
-                r: N64Button::R,
-                d_pad_left: N64Button::DPadLeft,
-                d_pad_right: N64Button::DPadRight,
-                d_pad_down: N64Button::DPadDown,
-                d_pad_up: N64Button::DPadUp,
-                c_stick_left: N64Button::CLeft,
-                c_stick_right: N64Button::CRight,
-                c_stick_down: N64Button::CDown,
-                c_stick_up: N64Button::CUp,
-            },
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub enum N64Button {
     A,

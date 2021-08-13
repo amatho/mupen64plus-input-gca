@@ -206,48 +206,6 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
 /// `keys` must point to an intialized `BUTTONS` union.
 #[no_mangle]
 pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
-    read_from_adapter(control, keys);
-}
-
-/// Process the command and possibly read the controller. Currently unused, since raw data is disabled.
-///
-/// # Safety
-///
-/// `command` must be a valid u8 array with length dependent of the given command.
-#[no_mangle]
-pub unsafe extern "C" fn ReadController(_control: c_int, _command: *mut u8) {}
-
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn ControllerCommand(_control: c_int, _command: *mut c_uchar) {}
-
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn RomOpen() -> c_int {
-    debug_print!(M64Message::Info, "RomOpen called");
-
-    1
-}
-
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn RomClosed() {
-    debug_print!(M64Message::Info, "RomClosed called");
-}
-
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn SDL_KeyDown(_keymod: c_int, _keysym: c_int) {
-    debug_print!(M64Message::Info, "SDL_KeyDown called");
-}
-
-/// Currently unused, only needed to be a valid input plugin.
-#[no_mangle]
-pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
-    debug_print!(M64Message::Info, "SDL_KeyUp called");
-}
-
-unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
     let s = ADAPTER_STATE.controller_state(control);
     if !s.connected {
         return;
@@ -306,4 +264,42 @@ unsafe fn read_from_adapter(control: c_int, keys: *mut BUTTONS) {
 
     keys.__bindgen_anon_1.set_X_AXIS(stick_x as i32);
     keys.__bindgen_anon_1.set_Y_AXIS(stick_y as i32);
+}
+
+/// Process the command and possibly read the controller. Currently unused, since raw data is disabled.
+///
+/// # Safety
+///
+/// `command` must be a valid u8 array with length dependent of the given command.
+#[no_mangle]
+pub unsafe extern "C" fn ReadController(_control: c_int, _command: *mut u8) {}
+
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn ControllerCommand(_control: c_int, _command: *mut c_uchar) {}
+
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn RomOpen() -> c_int {
+    debug_print!(M64Message::Info, "RomOpen called");
+
+    1
+}
+
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn RomClosed() {
+    debug_print!(M64Message::Info, "RomClosed called");
+}
+
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn SDL_KeyDown(_keymod: c_int, _keysym: c_int) {
+    debug_print!(M64Message::Info, "SDL_KeyDown called");
+}
+
+/// Currently unused, only needed to be a valid input plugin.
+#[no_mangle]
+pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
+    debug_print!(M64Message::Info, "SDL_KeyUp called");
 }

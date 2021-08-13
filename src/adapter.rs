@@ -238,7 +238,8 @@ impl ControllerState {
         let angle = (y as f32).atan2(x as f32);
 
         let deadzone = deadzone as i32;
-        let sensitivity = sensitivity as i32;
+        // User-facing sensitivity is inverted (so that higher values give higher radius)
+        let sensitivity = u8::MAX as i32 - sensitivity as i32;
 
         // Scale radius to counteract the deadzone, and fit the radius to the range [-80, 80] (N64
         // stick range).

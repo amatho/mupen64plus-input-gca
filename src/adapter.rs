@@ -152,11 +152,7 @@ impl AdapterState {
                 trigger_right,
             }
         } else {
-            debug_print!(
-                M64Message::Error,
-                "Entered unreachable code (invalid adapter buffer)"
-            );
-            ControllerState::default()
+            unreachable!();
         }
     }
 

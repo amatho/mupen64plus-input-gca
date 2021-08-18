@@ -123,11 +123,11 @@ impl AdapterState {
         let channel = channel.try_into().unwrap() as usize;
         let buf = *self.buf.lock();
 
-        if let [controller_type, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
+        if let [status, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
             buf[(9 * channel) + 1..]
         {
             ControllerState {
-                connected: controller_type != 0,
+                connected: is_controller_connected(status),
 
                 a: b1 & (1 << 0) > 0,
                 b: b1 & (1 << 1) > 0,
@@ -165,11 +165,8 @@ impl AdapterState {
         let buf = *self.buf.lock();
         let channel = channel.try_into().unwrap();
 
-        // 0 = No controller connected
-        // 1 = Wired controller
-        // 2 = Wireless controller
-        let controller_type = buf[1 + (9 * channel as usize)] >> 4;
-        controller_type != 0
+        let status = buf[1 + (9 * channel as usize)] >> 4;
+        is_controller_connected(status)
     }
 
     pub fn any_connected(&self) -> bool {
@@ -265,6 +262,13 @@ impl ControllerState {
             (0, 0)
         }
     }
+}
+
+fn is_controller_connected(status: u8) -> bool {
+    // 0x10 = Normal
+    // 0x20 = Wavebird
+    let controller_type = status & (0x10 | 0x20);
+    controller_type == 0x10 || controller_type == 0x20
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -12,7 +12,7 @@
 
 # Deadzone for the control stick.
 # Valid values are from 0 to 255.
-control_stick_deadzone = 15
+control_stick_deadzone = 20
 
 # Sensitivity for the control stick.
 # This controls how far you have to move the stick in order to reach max input.
@@ -21,7 +21,7 @@ control_stick_sensitivity = 180
 
 # Deadzone for the C-stick.
 # Valid values are from 0 to 255.
-c_stick_deadzone = 30
+c_stick_deadzone = 40
 
 # Threshold for the trigger buttons (L and R).
 # Set to max to only detect input when fully pressed.

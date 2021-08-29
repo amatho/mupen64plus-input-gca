@@ -254,13 +254,19 @@ impl ControllerState {
         let x = self.substick_x.wrapping_add(128) as i8;
         let y = self.substick_y.wrapping_add(128) as i8;
 
-        let distance = (x as i32).pow(2) + (y as i32).pow(2);
-
-        if distance > (deadzone as i32).pow(2) {
-            (x, y)
+        let x = if (x.abs() as u8) < deadzone {
+            0
         } else {
-            (0, 0)
-        }
+            x
+        };
+
+        let y = if (y.abs() as u8) < deadzone {
+            0
+        } else {
+            y
+        };
+
+        (x, y)
     }
 }
 

@@ -234,11 +234,17 @@ pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
     if s.start {
         keys.Value |= cfg.controller_mapping.start.bit_pattern();
     }
+    if s.a {
+        keys.Value |= cfg.controller_mapping.a.bit_pattern();
+    }
     if s.b {
         keys.Value |= cfg.controller_mapping.b.bit_pattern();
     }
-    if s.a {
-        keys.Value |= cfg.controller_mapping.a.bit_pattern();
+    if s.x {
+        keys.Value |= cfg.controller_mapping.x.bit_pattern();
+    }
+    if s.y {
+        keys.Value |= cfg.controller_mapping.y.bit_pattern();
     }
     if substick_x < 0 {
         keys.Value |= cfg.controller_mapping.c_stick_left.bit_pattern();

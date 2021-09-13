@@ -4,7 +4,7 @@ An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U 
 
 ## Installing
 
-**Note:** The plugin will only work for 64-bit Mupen64Plus. I have only tested it against [m64p](https://github.com/loganmc10/m64p).
+**Note:** There are currently only builds for 64-bit Mupen64Plus.
 
 1. Follow the first section of [this Dolphin guide](https://dolphin-emu.org/docs/guides/how-use-official-gc-controller-adapter-wii-u#Installation) to set up your adapter (use Zadig if you are on Windows).
 
@@ -23,7 +23,7 @@ After the plugin has been used at least once, a file will be generated in your M
 `mupen64plus-input-gca.toml`. This file contains the configuration for the plugin. Changes in the configuration will be
 loaded the next time you start your frontend.
 
-You can configure the following
+You can configure the following:
 
 * Deadzones for the control stick and C-stick.
 * Control stick sensitivity.
@@ -35,7 +35,7 @@ You can configure the following
     * This controls how far the triggers need to be pressed before an input is registered.
 * The controller mapping between the GameCube controller and the N64 buttons.
 
-The default controller mapping is what you would expect, except for
+The default controller mapping is what you would expect, except for:
 
 * Y is C-button left
 * X is C-button right

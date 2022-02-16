@@ -13,9 +13,10 @@ use ffi::*;
 use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
 use std::{
-    ffi::c_void,
+    ffi::{c_void, CStr},
     mem::ManuallyDrop,
     os::raw::{c_char, c_int, c_uchar},
+    path::Path,
     ptr,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -116,11 +117,33 @@ pub unsafe extern "C" fn PluginStartup(
         return m64p_error_M64ERR_PLUGIN_FAIL;
     }
 
-    let cfg_path = "mupen64plus-input-gca.toml";
+    let cfg_file_name = "mupen64plus-input-gca.toml";
+    let cfg_path = if let Ok(sym) =
+        lib.get::<extern "C" fn() -> *const c_char>(b"ConfigGetUserConfigPath\0")
+    {
+        let usr_cfg_dir = CStr::from_ptr(sym()).to_string_lossy();
+        Path::new(usr_cfg_dir.as_ref()).join(cfg_file_name)
+    } else {
+        debug_print!(
+            M64Message::Error,
+            "Could not find function for getting user config path"
+        );
+
+        Path::new(cfg_file_name)
+            .canonicalize()
+            .expect("could not canonicalize relative path")
+    };
+
+    debug_print!(
+        M64Message::Info,
+        "Using user configuration path: {}",
+        cfg_path.display()
+    );
+
     // Ignore error if the cell was alredy initialized
-    let _ = CONFIG.set(Config::read_from_file(cfg_path).unwrap_or_else(|e| {
+    let _ = CONFIG.set(Config::read_from_file(&cfg_path).unwrap_or_else(|e| {
         debug_print!(M64Message::Error, "Config error: {:?}", e);
-        Config::create(cfg_path).unwrap_or_else(|e| e)
+        Config::create(&cfg_path).unwrap_or_else(|e| e)
     }));
 
     m64p_error_M64ERR_SUCCESS

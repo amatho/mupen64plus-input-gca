@@ -19,8 +19,14 @@ fail to load. Then select the plugin in your Mupen64Plus frontend, and you are g
 
 ## Configuration
 
-After the plugin has been used at least once, a file will be generated in your Mupen64Plus folder named
-`mupen64plus-input-gca.toml`. This file contains the configuration for the plugin. Changes in the configuration will be
+After the plugin has been used at least once, a file will be generated in your Mupen64Plus user configuration folder named
+`mupen64plus-input-gca.toml`. The default location of the Mupen64Plus user configuration folder is
+
+* `C:\Users\<username>\AppData\Roaming\Mupen64Plus\`, on Windows
+* `$XDG_CONFIG_HOME/mupen64plus/` or `$HOME/.config/mupen64plus/`, on Linux
+* `$HOME/Library/Application Support/Mupen64Plus/`, on macOS.
+
+This file contains the configuration for the plugin. Changes in the configuration will be
 loaded the next time you start your frontend.
 
 You can configure the following:

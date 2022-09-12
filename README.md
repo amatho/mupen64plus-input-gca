@@ -14,8 +14,7 @@ An input plugin for Mupen64Plus using the GameCube controller adapter for Wii U 
 
 ## Usage
 
-Make sure that your adapter is plugged in and set up correctly before launching Mupen64Plus, otherwise the plugin will
-fail to load. Then select the plugin in your Mupen64Plus frontend, and you are good to go!
+Select the plugin in your Mupen64Plus frontend and connect your adapter, and you are good to go!
 
 ## Configuration
 

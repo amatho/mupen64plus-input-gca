@@ -42,7 +42,7 @@ pub(crate) fn __print_debug_message(level: M64Message, message: String) {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Eq)]
 pub enum M64Message {
     Error = 1,
     Warning,

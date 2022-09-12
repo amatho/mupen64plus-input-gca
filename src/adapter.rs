@@ -1,10 +1,9 @@
 use crate::{M64Message, IS_INIT};
-use parking_lot::Mutex;
 use rusb::{DeviceHandle, GlobalContext};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
-    sync::atomic::Ordering,
+    sync::{atomic::Ordering, Mutex},
     thread,
     time::Duration,
 };
@@ -31,7 +30,7 @@ pub fn start_read_thread() {
         debug_print!(M64Message::Info, "Found a GameCube adapter");
 
         while IS_INIT.load(Ordering::Acquire) {
-            *ADAPTER_STATE.buf.lock() = gc_adapter.read();
+            *ADAPTER_STATE.buf.lock().unwrap() = gc_adapter.read();
 
             // Gives a polling rate of approx. 1000 Hz
             thread::park_timeout(Duration::from_millis(1));
@@ -123,7 +122,7 @@ impl AdapterState {
         <T as TryInto<Channel>>::Error: Debug,
     {
         let channel = channel.try_into().unwrap() as usize;
-        let buf = *self.buf.lock();
+        let buf = *self.buf.lock().unwrap();
 
         if let [status, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
             buf[(9 * channel) + 1..]
@@ -164,7 +163,7 @@ impl AdapterState {
         T: TryInto<Channel>,
         <T as TryInto<Channel>>::Error: Debug,
     {
-        let buf = *self.buf.lock();
+        let buf = *self.buf.lock().unwrap();
         let channel = channel.try_into().unwrap();
 
         let status = buf[1 + (9 * channel as usize)] >> 4;
@@ -178,7 +177,7 @@ impl AdapterState {
     }
 
     pub fn set_buf(&mut self, buf: [u8; 37]) {
-        *self.buf.get_mut() = buf;
+        *self.buf.get_mut().unwrap() = buf;
     }
 }
 

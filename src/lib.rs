@@ -112,10 +112,7 @@ pub unsafe extern "C" fn PluginStartup(
         return m64p_error_M64ERR_INCOMPATIBLE;
     }
 
-    if adapter::start_read_thread().is_err() {
-        debug_print!(M64Message::Error, "Could not start adapter read thread");
-        return m64p_error_M64ERR_PLUGIN_FAIL;
-    }
+    adapter::start_read_thread();
 
     let cfg_file_name = "mupen64plus-input-gca.toml";
     let cfg_path = if let Ok(sym) =

@@ -15,16 +15,20 @@ const READ_LEN: usize = 37;
 
 pub static ADAPTER_STATE: AdapterState = AdapterState::new();
 
-pub fn start_read_thread() -> Result<(), &'static str> {
-    let gc_adapter = if let Ok(gc) = GCAdapter::new() {
-        gc
-    } else {
-        debug_print!(M64Message::Error, "Could not connect to GameCube adapter");
-        return Err("could not initialize GameCube adapter");
-    };
-
+pub fn start_read_thread() {
     thread::spawn(move || {
         debug_print!(M64Message::Info, "Adapter thread started");
+        debug_print!(M64Message::Info, "Trying to connect to GameCube adapter...");
+
+        let gc_adapter = loop {
+            if let Ok(gc) = GCAdapter::new() {
+                break gc;
+            }
+
+            thread::park_timeout(Duration::from_secs(1));
+        };
+
+        debug_print!(M64Message::Info, "Found a GameCube adapter");
 
         while IS_INIT.load(Ordering::Acquire) {
             *ADAPTER_STATE.buf.lock() = gc_adapter.read();
@@ -35,8 +39,6 @@ pub fn start_read_thread() -> Result<(), &'static str> {
 
         debug_print!(M64Message::Info, "Adapter thread stopped");
     });
-
-    Ok(())
 }
 
 pub struct GCAdapter {

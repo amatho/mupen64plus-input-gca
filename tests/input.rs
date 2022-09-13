@@ -1,8 +1,5 @@
-use mupen64plus_input_gca::adapter::{AdapterState, Channel, ControllerState, GCAdapter};
-use std::{
-    io::Write,
-    time::{Duration, Instant},
-};
+use mupen64plus_input_gca::adapter::{AdapterState, ControllerState, GcAdapter};
+use std::time::{Duration, Instant};
 
 fn all_controller_states<'a>(
     state: &'a AdapterState,
@@ -42,11 +39,11 @@ fn any(state: ControllerState) -> bool {
 fn receives_input() {
     const ERR: &str = "make sure the adapter is connected, and press the input(s) you want to test";
 
-    let adapter = GCAdapter::new().expect(ERR);
+    let adapter = GcAdapter::new().expect(ERR);
     let started = Instant::now();
 
     let mut state = AdapterState::new();
-    state.set_buf(adapter.read());
+    state.set_buf(adapter.read().unwrap());
 
     if !(0..4).map(|i| state.is_connected(i)).any(|b| b) {
         eprintln!("no controllers detected, but might be a false negative");
@@ -58,7 +55,7 @@ fn receives_input() {
             break;
         }
 
-        state.set_buf(adapter.read());
+        state.set_buf(adapter.read().unwrap());
         if let Some((i, _)) = (0..4)
             .map(|i| (i, any(state.controller_state(i))))
             .find(|(_, a)| *a)

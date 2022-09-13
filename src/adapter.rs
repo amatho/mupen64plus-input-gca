@@ -19,18 +19,23 @@ pub fn start_read_thread() {
         debug_print!(M64Message::Info, "Adapter thread started");
         debug_print!(M64Message::Info, "Trying to connect to GameCube adapter...");
 
-        let gc_adapter = loop {
-            if let Ok(gc) = GCAdapter::new() {
-                break gc;
-            }
-
-            thread::park_timeout(Duration::from_secs(1));
-        };
+        let mut gc_adapter = GcAdapter::blocking_connect();
 
         debug_print!(M64Message::Info, "Found a GameCube adapter");
 
         while IS_INIT.load(Ordering::Acquire) {
-            *ADAPTER_STATE.buf.lock().unwrap() = gc_adapter.read();
+            match gc_adapter.read() {
+                Ok(buf) => *ADAPTER_STATE.buf.lock().unwrap() = buf,
+                Err(rusb::Error::NoDevice) => {
+                    debug_print!(
+                        M64Message::Info,
+                        "Adapter disconnected, trying to reconnect..."
+                    );
+                    gc_adapter = GcAdapter::blocking_connect();
+                    debug_print!(M64Message::Info, "Adapter reconnected");
+                }
+                Err(e) => panic!("error while reading from adapter: {:?}", e),
+            }
 
             // Gives a polling rate of approx. 1000 Hz
             thread::park_timeout(Duration::from_millis(1));
@@ -40,11 +45,11 @@ pub fn start_read_thread() {
     });
 }
 
-pub struct GCAdapter {
+pub struct GcAdapter {
     handle: DeviceHandle<GlobalContext>,
 }
 
-impl Debug for GCAdapter {
+impl Debug for GcAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -56,7 +61,7 @@ impl Debug for GCAdapter {
     }
 }
 
-impl GCAdapter {
+impl GcAdapter {
     pub fn new() -> Result<Self, rusb::Error> {
         let device = rusb::devices()?
             .iter()
@@ -87,18 +92,29 @@ impl GCAdapter {
         handle.claim_interface(0)?;
         handle.write_interrupt(ENDPOINT_OUT, &[0x13], Duration::from_millis(16))?;
 
-        Ok(GCAdapter { handle })
+        Ok(GcAdapter { handle })
     }
 
-    pub fn read(&self) -> [u8; READ_LEN] {
+    /// Continuously try to connect to the adapter
+    pub fn blocking_connect() -> Self {
+        loop {
+            if let Ok(gc) = GcAdapter::new() {
+                break gc;
+            }
+
+            thread::park_timeout(Duration::from_secs(1));
+        }
+    }
+
+    pub fn read(&self) -> rusb::Result<[u8; READ_LEN]> {
         let mut buf = [0; READ_LEN];
 
         match self
             .handle
             .read_interrupt(ENDPOINT_IN, &mut buf, Duration::from_millis(16))
         {
-            Ok(_) | Err(rusb::Error::Timeout) => buf,
-            Err(e) => panic!("error while reading from adapter: {:?}", e),
+            Ok(_) | Err(rusb::Error::Timeout) => Ok(buf),
+            Err(e) => Err(e),
         }
     }
 }

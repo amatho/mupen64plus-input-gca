@@ -2,7 +2,7 @@
 name = "mupen64plus-input-gca"
 version = "0.6.0"
 authors = ["Amandus Søve Thorsrud <ama.thorsrud@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 
 [lib]

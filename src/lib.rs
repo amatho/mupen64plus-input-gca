@@ -6,7 +6,7 @@ mod ffi;
 #[macro_use]
 mod static_cstr;
 
-use adapter::ADAPTER_STATE;
+use adapter::AdapterState;
 use config::Config;
 use debug::M64Message;
 use ffi::*;
@@ -19,12 +19,16 @@ use std::{
     path::Path,
     ptr,
     sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::Duration,
 };
 
 #[cfg(unix)]
 use libloading::os::unix::Library;
 #[cfg(windows)]
 use libloading::os::windows::Library;
+
+use crate::adapter::GcAdapter;
 
 struct PluginInfo {
     name: StaticCStr,
@@ -41,6 +45,8 @@ static PLUGIN_INFO: PluginInfo = PluginInfo {
 static IS_INIT: AtomicBool = AtomicBool::new(false);
 
 static CONFIG: OnceCell<Config> = OnceCell::new();
+
+static ADAPTER_STATE: AdapterState = AdapterState::new();
 
 /// Start up the plugin.
 ///
@@ -112,7 +118,7 @@ pub unsafe extern "C" fn PluginStartup(
         return m64p_error_M64ERR_INCOMPATIBLE;
     }
 
-    adapter::start_read_thread();
+    start_read_thread();
 
     let cfg_file_name = "mupen64plus-input-gca.toml";
     let cfg_path = if let Ok(sym) =
@@ -211,7 +217,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
         (*controls.add(i)).Present = 1;
     }
 
-    if !adapter::ADAPTER_STATE.any_connected() {
+    if !ADAPTER_STATE.any_connected() {
         debug_print!(
             M64Message::Warning,
             "No controllers connected, but hotplugging is supported"
@@ -328,4 +334,35 @@ pub extern "C" fn SDL_KeyDown(_keymod: c_int, _keysym: c_int) {
 #[no_mangle]
 pub extern "C" fn SDL_KeyUp(_keymod: c_int, _keysym: c_int) {
     debug_print!(M64Message::Info, "SDL_KeyUp called");
+}
+
+pub fn start_read_thread() {
+    thread::spawn(move || {
+        debug_print!(M64Message::Info, "Adapter thread started");
+        debug_print!(M64Message::Info, "Trying to connect to GameCube adapter...");
+
+        let mut gc_adapter = GcAdapter::blocking_connect();
+
+        debug_print!(M64Message::Info, "Found a GameCube adapter");
+
+        while IS_INIT.load(Ordering::Acquire) {
+            match gc_adapter.read() {
+                Ok(buf) => *ADAPTER_STATE.buf.lock().unwrap() = buf,
+                Err(rusb::Error::NoDevice) => {
+                    debug_print!(
+                        M64Message::Info,
+                        "Adapter disconnected, trying to reconnect..."
+                    );
+                    gc_adapter = GcAdapter::blocking_connect();
+                    debug_print!(M64Message::Info, "Adapter reconnected");
+                }
+                Err(e) => panic!("error while reading from adapter: {e:?}"),
+            }
+
+            // Gives a polling rate of approx. 1000 Hz
+            thread::park_timeout(Duration::from_millis(1));
+        }
+
+        debug_print!(M64Message::Info, "Adapter thread stopped");
+    });
 }

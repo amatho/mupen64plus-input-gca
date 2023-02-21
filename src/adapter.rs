@@ -1,9 +1,8 @@
-use crate::{M64Message, IS_INIT};
 use rusb::{DeviceHandle, GlobalContext};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
-    sync::{atomic::Ordering, Mutex},
+    sync::Mutex,
     thread,
     time::Duration,
 };
@@ -11,39 +10,6 @@ use std::{
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
 const READ_LEN: usize = 37;
-
-pub static ADAPTER_STATE: AdapterState = AdapterState::new();
-
-pub fn start_read_thread() {
-    thread::spawn(move || {
-        debug_print!(M64Message::Info, "Adapter thread started");
-        debug_print!(M64Message::Info, "Trying to connect to GameCube adapter...");
-
-        let mut gc_adapter = GcAdapter::blocking_connect();
-
-        debug_print!(M64Message::Info, "Found a GameCube adapter");
-
-        while IS_INIT.load(Ordering::Acquire) {
-            match gc_adapter.read() {
-                Ok(buf) => *ADAPTER_STATE.buf.lock().unwrap() = buf,
-                Err(rusb::Error::NoDevice) => {
-                    debug_print!(
-                        M64Message::Info,
-                        "Adapter disconnected, trying to reconnect..."
-                    );
-                    gc_adapter = GcAdapter::blocking_connect();
-                    debug_print!(M64Message::Info, "Adapter reconnected");
-                }
-                Err(e) => panic!("error while reading from adapter: {:?}", e),
-            }
-
-            // Gives a polling rate of approx. 1000 Hz
-            thread::park_timeout(Duration::from_millis(1));
-        }
-
-        debug_print!(M64Message::Info, "Adapter thread stopped");
-    });
-}
 
 pub struct GcAdapter {
     handle: DeviceHandle<GlobalContext>,
@@ -80,14 +46,7 @@ impl GcAdapter {
         // From Dolphin emulator source:
         // "This call makes Nyko-brand (and perhaps other) adapters work.
         // However it returns LIBUSB_ERROR_PIPE with Mayflash adapters."
-        let res = handle.write_control(0x21, 11, 0x0001, 0, &[], Duration::from_millis(1000));
-        if let Err(e) = res {
-            debug_print!(
-                M64Message::Warning,
-                "Control transfer failed with error: {:?}",
-                e
-            );
-        }
+        let _ = handle.write_control(0x21, 11, 0x0001, 0, &[], Duration::from_millis(1000));
 
         handle.claim_interface(0)?;
         handle.write_interrupt(ENDPOINT_OUT, &[0x13], Duration::from_millis(16))?;
@@ -121,7 +80,7 @@ impl GcAdapter {
 
 #[derive(Debug)]
 pub struct AdapterState {
-    buf: Mutex<[u8; 37]>,
+    pub buf: Mutex<[u8; 37]>,
 }
 
 impl AdapterState {

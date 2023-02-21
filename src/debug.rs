@@ -36,7 +36,7 @@ pub(crate) fn __print_debug_message(level: M64Message, message: String) {
             (di.callback)(context, level as c_int, message.as_ptr());
         }
         None => {
-            println!("{:?}: {}", level, message);
+            println!("{level:?}: {message}");
         }
     }
 }

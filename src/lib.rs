@@ -6,9 +6,10 @@ mod ffi;
 #[macro_use]
 mod static_cstr;
 
-use adapter::AdapterState;
+use adapter::{AdapterState, Channel};
 use config::Config;
 use debug::M64Message;
+use deku::DekuContainerRead;
 use ffi::*;
 use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
@@ -235,8 +236,11 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
 /// `keys` must point to an intialized `BUTTONS` union.
 #[no_mangle]
 pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
-    let s = ADAPTER_STATE.lock().unwrap().controller_state(control);
-    if !s.connected {
+    let s = ADAPTER_STATE
+        .lock()
+        .unwrap()
+        .controller_state(Channel::try_from(control).unwrap());
+    if !s.is_connected() {
         return;
     }
 
@@ -350,7 +354,9 @@ pub fn start_read_thread() {
 
         while IS_INIT.load(Ordering::Acquire) {
             match gc_adapter.read() {
-                Ok(buf) => ADAPTER_STATE.lock().unwrap().buf = buf,
+                Ok(buf) => {
+                    *ADAPTER_STATE.lock().unwrap() = AdapterState::from_bytes((&buf, 0)).unwrap().1
+                }
                 Err(rusb::Error::NoDevice) => {
                     debug_print!(
                         M64Message::Info,

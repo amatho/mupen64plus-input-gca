@@ -43,7 +43,7 @@ fn receives_input() {
     let started = Instant::now();
 
     let mut state = AdapterState::new();
-    state.set_buf(adapter.read().unwrap());
+    state.buf = adapter.read().unwrap();
 
     if !(0..4).map(|i| state.is_connected(i)).any(|b| b) {
         eprintln!("no controllers detected, but might be a false negative");
@@ -55,7 +55,7 @@ fn receives_input() {
             break;
         }
 
-        state.set_buf(adapter.read().unwrap());
+        state.buf = adapter.read().unwrap();
         if let Some((i, _)) = (0..4)
             .map(|i| (i, any(state.controller_state(i))))
             .find(|(_, a)| *a)

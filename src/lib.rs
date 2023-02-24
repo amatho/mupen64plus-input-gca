@@ -18,7 +18,10 @@ use std::{
     os::raw::{c_char, c_int, c_uchar},
     path::Path,
     ptr,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     thread,
     time::Duration,
 };
@@ -46,7 +49,7 @@ static IS_INIT: AtomicBool = AtomicBool::new(false);
 
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
-static ADAPTER_STATE: AdapterState = AdapterState::new();
+static ADAPTER_STATE: Mutex<AdapterState> = Mutex::new(AdapterState::new());
 
 /// Start up the plugin.
 ///
@@ -217,7 +220,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
         (*controls.add(i)).Present = 1;
     }
 
-    if !ADAPTER_STATE.any_connected() {
+    if !ADAPTER_STATE.lock().unwrap().any_connected() {
         debug_print!(
             M64Message::Warning,
             "No controllers connected, but hotplugging is supported"
@@ -232,7 +235,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
 /// `keys` must point to an intialized `BUTTONS` union.
 #[no_mangle]
 pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
-    let s = ADAPTER_STATE.controller_state(control);
+    let s = ADAPTER_STATE.lock().unwrap().controller_state(control);
     if !s.connected {
         return;
     }
@@ -347,7 +350,7 @@ pub fn start_read_thread() {
 
         while IS_INIT.load(Ordering::Acquire) {
             match gc_adapter.read() {
-                Ok(buf) => *ADAPTER_STATE.buf.lock().unwrap() = buf,
+                Ok(buf) => ADAPTER_STATE.lock().unwrap().buf = buf,
                 Err(rusb::Error::NoDevice) => {
                     debug_print!(
                         M64Message::Info,

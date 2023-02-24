@@ -2,7 +2,6 @@ use rusb::{DeviceHandle, GlobalContext};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Debug,
-    sync::Mutex,
     thread,
     time::Duration,
 };
@@ -80,14 +79,12 @@ impl GcAdapter {
 
 #[derive(Debug)]
 pub struct AdapterState {
-    pub buf: Mutex<[u8; 37]>,
+    pub buf: [u8; READ_LEN],
 }
 
 impl AdapterState {
     pub const fn new() -> Self {
-        AdapterState {
-            buf: Mutex::new([0; READ_LEN]),
-        }
+        AdapterState { buf: [0; READ_LEN] }
     }
 
     /// Get the `ControllerState` for the given channel
@@ -97,10 +94,9 @@ impl AdapterState {
         <T as TryInto<Channel>>::Error: Debug,
     {
         let channel = channel.try_into().unwrap() as usize;
-        let buf = *self.buf.lock().unwrap();
 
         if let [status, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] =
-            buf[(9 * channel) + 1..]
+            self.buf[(9 * channel) + 1..]
         {
             ControllerState {
                 connected: is_controller_connected(status),
@@ -138,10 +134,9 @@ impl AdapterState {
         T: TryInto<Channel>,
         <T as TryInto<Channel>>::Error: Debug,
     {
-        let buf = *self.buf.lock().unwrap();
         let channel = channel.try_into().unwrap();
 
-        let status = buf[1 + (9 * channel as usize)] >> 4;
+        let status = self.buf[1 + (9 * channel as usize)] >> 4;
         is_controller_connected(status)
     }
 
@@ -149,10 +144,6 @@ impl AdapterState {
         (0..4)
             .map(|i| self.is_connected(i))
             .any(std::convert::identity)
-    }
-
-    pub fn set_buf(&mut self, buf: [u8; 37]) {
-        *self.buf.get_mut().unwrap() = buf;
     }
 }
 
@@ -278,5 +269,17 @@ impl TryFrom<i32> for Channel {
             3 => Ok(Channel::Four),
             x => Err(x),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_adapter_state() {
+        let data: Vec<u8> = (0..READ_LEN as u8).collect();
+        let mut state = AdapterState::new();
+        state.buf.copy_from_slice(&data);
     }
 }

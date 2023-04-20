@@ -1,22 +1,10 @@
-#[cfg(unix)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
 #[allow(dead_code)]
 #[allow(clippy::all)]
-pub mod unix;
-#[cfg(unix)]
-pub use unix::*;
-
-#[cfg(windows)]
-#[allow(non_upper_case_globals)]
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
-#[allow(dead_code)]
-#[allow(clippy::all)]
-pub mod windows;
-#[cfg(windows)]
-pub use windows::*;
+mod bindings;
+pub use bindings::*;
 
 #[cfg(feature = "m64p_compat")]
 #[repr(C)]

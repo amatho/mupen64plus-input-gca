@@ -9,7 +9,6 @@ mod static_cstr;
 use adapter::{AdapterState, Channel};
 use config::Config;
 use debug::M64Message;
-use deku::DekuContainerRead;
 use ffi::*;
 use once_cell::sync::OnceCell;
 use static_cstr::StaticCStr;
@@ -50,7 +49,28 @@ static IS_INIT: AtomicBool = AtomicBool::new(false);
 
 static CONFIG: OnceCell<Config> = OnceCell::new();
 
+static ADAPTER: OnceCell<GcAdapter> = OnceCell::new();
 static ADAPTER_STATE: Mutex<AdapterState> = Mutex::new(AdapterState::new());
+static ADAPTER_RUMBLE: Mutex<[u8; 4]> = Mutex::new([0; 4]);
+
+fn data_crc(data: &[u8], len: usize) -> u8 {
+    let mut remainder = data[0];
+    let mut byte: usize = 1;
+    let mut bit: u8 = 0;
+
+    while byte <= len {
+        let high_bit = (remainder & 0x80) != 0;
+        remainder <<= 1;
+        remainder += (byte < len && (data[byte] & (0x80 >> bit)) > 0) as u8;
+        remainder ^= if high_bit { 0x85 } else { 0 };
+
+        bit += 1;
+        byte += (bit / 8) as usize;
+        bit %= 8;
+    }
+
+    remainder
+}
 
 /// Start up the plugin.
 ///
@@ -219,6 +239,7 @@ pub unsafe extern "C" fn InitiateControllers(control_info: CONTROL_INFO) {
     for i in 0..4 {
         (*controls.add(i)).RawData = 0;
         (*controls.add(i)).Present = 1;
+        (*controls.add(i)).Plugin = PLUGIN_RAW as i32;
     }
 
     if !ADAPTER_STATE.lock().unwrap().any_connected() {
@@ -313,9 +334,59 @@ pub unsafe extern "C" fn GetKeys(control: c_int, keys: *mut BUTTONS) {
 #[no_mangle]
 pub unsafe extern "C" fn ReadController(_control: c_int, _command: *mut u8) {}
 
-/// Currently unused, only needed to be a valid input plugin.
+/// Process a controller command. This is used to handle rumble.
+///
+/// # Safety
+///
+/// `command` must be at least 3 bytes long. In the case the command is a read or write from
+/// the controller pack, it also needs to have length of 37.
 #[no_mangle]
-pub extern "C" fn ControllerCommand(_control: c_int, _command: *mut c_uchar) {}
+pub unsafe extern "C" fn ControllerCommand(control: c_int, command: *mut c_uchar) {
+    if control == -1 {
+        return;
+    }
+
+    let cmd_type = *command.add(2);
+
+    // TODO: Not working, fix
+    match cmd_type {
+        // Read from controller pack
+        0x02 => {
+            let data = std::slice::from_raw_parts_mut(command.add(5), 33);
+
+            let dw_address = ((*command.add(3) as u32) << 8) + ((*command.add(4) & 0xE0) as u32);
+            if (0x8000..0x9000).contains(&dw_address) {
+                data.fill(0x80);
+            } else {
+                data.fill(0x00);
+            }
+
+            data[32] = data_crc(data, 32);
+        }
+        // Write to controller pack
+        0x03 => {
+            let data = std::slice::from_raw_parts_mut(command.add(5), 33);
+
+            let dw_address = ((*command.add(3) as u32) << 8) + ((*command.add(4) & 0xE0) as u32);
+            if dw_address == 0xC000 {
+                let rumble_strength = if data[0] > 0 { 0xFF } else { 0 };
+                let mut rumble = ADAPTER_RUMBLE.lock().unwrap();
+                rumble[control as usize] = rumble_strength;
+                match ADAPTER.get().unwrap().set_rumble(*rumble) {
+                    Ok(_) => (),
+                    Err(e) => debug_print!(
+                        M64Message::Error,
+                        "Could not write rumble command to adapter: {:?}",
+                        e
+                    ),
+                }
+            }
+
+            data[32] = data_crc(data, 32);
+        }
+        _ => (),
+    }
+}
 
 /// Currently unused, only needed to be a valid input plugin.
 #[no_mangle]
@@ -348,23 +419,26 @@ pub fn start_read_thread() {
         debug_print!(M64Message::Info, "Adapter thread started");
         debug_print!(M64Message::Info, "Trying to connect to GameCube adapter...");
 
-        let mut gc_adapter = GcAdapter::blocking_connect();
+        let gc_adapter = ADAPTER.get_or_init(|| {
+            while IS_INIT.load(Ordering::Acquire) {
+                match GcAdapter::new() {
+                    Ok(a) => return a,
+                    Err(e) => {
+                        debug_print!(M64Message::Error, "Could not connect to adapter: {}", e);
+                    }
+                }
+
+                thread::park_timeout(Duration::from_secs(1));
+            }
+
+            panic!("plugin was not initialized");
+        });
 
         debug_print!(M64Message::Info, "Found a GameCube adapter");
 
         while IS_INIT.load(Ordering::Acquire) {
             match gc_adapter.read() {
-                Ok(buf) => {
-                    *ADAPTER_STATE.lock().unwrap() = AdapterState::from_bytes((&buf, 0)).unwrap().1
-                }
-                Err(rusb::Error::NoDevice) => {
-                    debug_print!(
-                        M64Message::Info,
-                        "Adapter disconnected, trying to reconnect..."
-                    );
-                    gc_adapter = GcAdapter::blocking_connect();
-                    debug_print!(M64Message::Info, "Adapter reconnected");
-                }
+                Ok(buf) => *ADAPTER_STATE.lock().unwrap() = AdapterState::from(buf),
                 Err(e) => panic!("error while reading from adapter: {e:?}"),
             }
 

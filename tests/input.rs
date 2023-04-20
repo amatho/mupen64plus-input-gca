@@ -1,4 +1,3 @@
-use deku::DekuContainerRead;
 use mupen64plus_input_gca::adapter::{AdapterState, ControllerState, GcAdapter};
 use std::time::{Duration, Instant};
 
@@ -13,12 +12,9 @@ fn all_controller_states(state: &AdapterState) -> impl Iterator<Item = Controlle
 }
 
 fn any(state: ControllerState) -> bool {
-    const CONTROL_DEADZONE: u8 = 15;
-    const CONTROL_SENSITIVITY: u8 = 100;
-    const C_DEADZONE: u8 = 15;
+    const CONTROL_DEADZONE: u8 = 30;
+    const C_DEADZONE: u8 = 30;
     const TRIGGER_THRESHOLD: u8 = 168;
-    let (stick_x, stick_y) = state.stick_with_deadzone(CONTROL_DEADZONE, CONTROL_SENSITIVITY);
-    let (substick_x, substick_y) = state.substick_with_deadzone(C_DEADZONE);
     state.is_connected()
         && (state.a
             || state.b
@@ -34,10 +30,14 @@ fn any(state: ControllerState) -> bool {
             || state.r
             || state.trigger_right > TRIGGER_THRESHOLD
             || state.z
-            || stick_x != 0
-            || stick_y != 0
-            || substick_x != 0
-            || substick_y != 0)
+            || state.stick_x < 128 - CONTROL_DEADZONE
+            || state.stick_x > 128 + CONTROL_DEADZONE
+            || state.stick_y < 128 - CONTROL_DEADZONE
+            || state.stick_y > 128 + CONTROL_DEADZONE
+            || state.substick_x < 128 - C_DEADZONE
+            || state.substick_x > 128 + C_DEADZONE
+            || state.substick_y < 128 - C_DEADZONE
+            || state.substick_y > 128 + C_DEADZONE)
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn receives_input() {
     let adapter = GcAdapter::new().expect(ERR);
     let started = Instant::now();
 
-    let (_rest, state) = AdapterState::from_bytes((&adapter.read().unwrap(), 0)).unwrap();
+    let state = AdapterState::from(adapter.read().unwrap());
 
     if !state.any_connected() {
         eprintln!("no controllers detected, but might be a false negative");
@@ -59,7 +59,8 @@ fn receives_input() {
             break;
         }
 
-        let (_rest, state) = AdapterState::from_bytes((&adapter.read().unwrap(), 0)).unwrap();
+        let buf = adapter.read().unwrap();
+        let state = AdapterState::from(buf);
         for (i, s) in (0..4)
             .zip(all_controller_states(&state))
             .filter(|(_, s)| any(*s))

@@ -1,6 +1,5 @@
-use deku::prelude::*;
 use rusb::{DeviceHandle, GlobalContext};
-use std::{convert::TryFrom, fmt::Debug, thread, time::Duration};
+use std::{convert::TryFrom, fmt::Debug, time::Duration};
 
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_OUT: u8 = 0x02;
@@ -49,17 +48,6 @@ impl GcAdapter {
         Ok(GcAdapter { handle })
     }
 
-    /// Continuously try to connect to the adapter
-    pub fn blocking_connect() -> Self {
-        loop {
-            if let Ok(gc) = GcAdapter::new() {
-                break gc;
-            }
-
-            thread::park_timeout(Duration::from_secs(1));
-        }
-    }
-
     pub fn read(&self) -> rusb::Result<[u8; READ_LEN]> {
         let mut buf = [0; READ_LEN];
 
@@ -71,11 +59,17 @@ impl GcAdapter {
             Err(e) => Err(e),
         }
     }
+
+    pub fn set_rumble(&self, strengths: [u8; 4]) -> rusb::Result<()> {
+        let data = [0x11, strengths[0], strengths[1], strengths[2], strengths[3]];
+        self.handle
+            .write_interrupt(ENDPOINT_OUT, &data, Duration::from_millis(16))?;
+        Ok(())
+    }
 }
 
-#[derive(Debug, PartialEq, DekuRead)]
+#[derive(Debug, PartialEq)]
 pub struct AdapterState {
-    unknown: u8,
     pub controller_0: ControllerState,
     pub controller_1: ControllerState,
     pub controller_2: ControllerState,
@@ -85,7 +79,6 @@ pub struct AdapterState {
 impl AdapterState {
     pub const fn new() -> Self {
         Self {
-            unknown: 0,
             controller_0: ControllerState::new(),
             controller_1: ControllerState::new(),
             controller_2: ControllerState::new(),
@@ -111,40 +104,40 @@ impl AdapterState {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, DekuRead)]
-#[deku(endian = "little")]
+impl From<[u8; READ_LEN]> for AdapterState {
+    fn from(bytes: [u8; READ_LEN]) -> Self {
+        let controller_0 = ControllerState::from(&bytes[1..]);
+        let controller_1 = ControllerState::from(&bytes[10..]);
+        let controller_2 = ControllerState::from(&bytes[19..]);
+        let controller_3 = ControllerState::from(&bytes[28..]);
+
+        Self {
+            controller_0,
+            controller_1,
+            controller_2,
+            controller_3,
+        }
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct ControllerState {
     pub status: u8,
 
-    #[deku(bits = "1")]
     pub a: bool,
-    #[deku(bits = "1")]
     pub b: bool,
-    #[deku(bits = "1")]
     pub x: bool,
-    #[deku(bits = "1")]
     pub y: bool,
 
-    #[deku(bits = "1")]
     pub left: bool,
-    #[deku(bits = "1")]
     pub right: bool,
-    #[deku(bits = "1")]
     pub down: bool,
-    #[deku(bits = "1")]
     pub up: bool,
 
-    #[deku(bits = "1")]
     pub start: bool,
-    #[deku(bits = "1")]
     pub z: bool,
-    #[deku(bits = "1")]
     pub r: bool,
-    #[deku(bits = "1")]
     pub l: bool,
-
-    #[deku(bits = "4")]
-    b2_rest: u8,
 
     pub stick_x: u8,
     pub stick_y: u8,
@@ -170,7 +163,6 @@ impl ControllerState {
             z: false,
             r: false,
             l: false,
-            b2_rest: 0,
             stick_x: 0,
             stick_y: 0,
             substick_x: 0,
@@ -230,8 +222,41 @@ impl ControllerState {
     pub fn is_connected(&self) -> bool {
         // 0x10 = Normal
         // 0x20 = Wavebird
-        let controller_type = self.status & (0x10 | 0x20);
-        controller_type == 0x10 || controller_type == 0x20
+        (self.status & 0x10) > 0 || (self.status & 0x20) > 0
+    }
+}
+
+impl From<&[u8]> for ControllerState {
+    fn from(bytes: &[u8]) -> Self {
+        let [status, b1, b2, stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, ..] = *bytes else {
+            panic!("invalid controller state bytes");
+        };
+
+        Self {
+            status,
+
+            a: b1 & (1 << 0) > 0,
+            b: b1 & (1 << 1) > 0,
+            x: b1 & (1 << 2) > 0,
+            y: b1 & (1 << 3) > 0,
+
+            left: b1 & (1 << 4) > 0,
+            right: b1 & (1 << 5) > 0,
+            down: b1 & (1 << 6) > 0,
+            up: b1 & (1 << 7) > 0,
+
+            start: b2 & (1 << 0) > 0,
+            z: b2 & (1 << 1) > 0,
+            r: b2 & (1 << 2) > 0,
+            l: b2 & (1 << 3) > 0,
+
+            stick_x,
+            stick_y,
+            substick_x,
+            substick_y,
+            trigger_left,
+            trigger_right,
+        }
     }
 }
 
@@ -282,10 +307,23 @@ mod tests {
             0b11110110, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0x3, 0b10010110, 0b11110110, 0x5, 0x6, 0x7,
             0x8, 0x9, 0xA, 0x4, 0b10010110, 0b11110110, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA,
         ];
-        let (_rest, state) = AdapterState::from_bytes((&data, 0)).unwrap();
-        assert_eq!(state.controller_0.status, 0x1);
-        assert_eq!(state.controller_1.status, 0x2);
-        assert_eq!(state.controller_2.status, 0x3);
-        assert_eq!(state.controller_3.status, 0x4);
+        let state = AdapterState::from(data);
+        assert_eq!(0x1, state.controller_0.status);
+        assert!(!state.controller_0.a);
+        assert!(state.controller_0.b);
+        assert!(state.controller_0.x);
+        assert!(!state.controller_0.y);
+        assert!(state.controller_0.up);
+        assert!(!state.controller_0.down);
+        assert!(!state.controller_0.right);
+        assert!(state.controller_0.left);
+        assert!(!state.controller_0.start);
+        assert!(state.controller_0.z);
+        assert!(state.controller_0.r);
+        assert!(!state.controller_0.l);
+        assert_eq!(0x2, state.controller_1.status);
+        assert_eq!(0x3, state.controller_2.status);
+        assert_eq!(0x4, state.controller_3.status);
+        // TODO: Write more assertions
     }
 }
